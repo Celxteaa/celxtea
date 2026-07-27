@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sector B: Celestia Lab</title>
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@500;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Three.js + OrbitControls + PointerLockControls + GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <!-- Post-Processing Addons for Bloom Effect -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #020617;
+      --accent-cyan: #00f2fe;
+      --accent-gold: #ffb703;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --glass: rgba(15, 23, 42, 0.85);
+      --glass-border: rgba(0, 242, 254, 0.35);
+      --font-gamify: 'Orbitron', sans-serif;
+      --font-title: 'Space Grotesk', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100vh; overflow: hidden; background: var(--bg-dark); font-family: var(--font-title); color: #fff; touch-action: none; }
+
+    #webgl-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+    /* GAMIFIED HIGH-TECH LOADING SCREEN STYLES */
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at center, #071126 0%, #020617 100%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+      overflow: hidden;
+    }
+    #loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Ambient Scanlines Effect */
+    #loading-screen::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .loading-box {
+      width: 90%;
+      max-width: 500px;
+      padding: 35px 30px;
+      background: rgba(10, 18, 36, 0.75);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      border-radius: 8px;
+      backdrop-filter: blur(25px);
+      box-shadow: 0 0 40px rgba(0,242,254,0.15), inset 0 0 20px rgba(0,242,254,0.05);
+      text-align: center;
+      position: relative;
+      z-index: 3;
+    }
+
+    /* Game UI Corner Brackets */
+    .loading-box::before, .loading-box::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--accent-cyan);
+    }
+    .loading-box::before { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+    .loading-box::after { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+    /* Futuristic Rotating Ring Spinner */
+    .spinner-container {
+      position: relative;
+      width: 90px;
+      height: 90px;
+      margin: 0 auto 25px auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .spinner-outer {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border: 2px dashed rgba(0, 242, 254, 0.4);
+      border-radius: 50%;
+      animation: spin 8s linear infinite;
+    }
+    .spinner-inner {
+      position: absolute;
+      width: 70%;
+      height: 70%;
+      border: 2px solid transparent;
+      border-top-color: var(--accent-cyan);
+      border-bottom-color: var(--accent-green);
+      border-radius: 50%;
+      animation: spin-reverse 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+    }
+    .spinner-core {
+      width: 12px;
+      height: 12px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--accent-cyan);
+    }
+
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes spin-reverse { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+
+    .loading-title {
+      font-family: var(--font-gamify);
+      font-weight: 900;
+      font-size: 1.2rem;
+      color: var(--accent-cyan);
+      letter-spacing: 3px;
+      margin-bottom: 20px;
+      text-shadow: 0 0 12px rgba(0,242,254,0.6);
+      text-transform: uppercase;
+    }
+
+    .loading-bar-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(2, 6, 23, 0.9);
+      border: 1px solid rgba(0, 242, 254, 0.4);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 12px;
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
+    }
+    .loading-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+      box-shadow: 0 0 15px var(--accent-cyan);
+      transition: width 0.2s ease-out;
+    }
+
+    .loading-status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 15px;
+    }
+    .loading-percentage {
+      font-weight: bold;
+      color: var(--accent-cyan);
+    }
+
+    /* Live Game Console Logs Below Bar */
+    .loading-console {
+      font-family: var(--font-code);
+      font-size: 0.68rem;
+      color: rgba(0, 242, 254, 0.6);
+      text-align: left;
+      height: 36px;
+      overflow: hidden;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 8px;
+    }
+
+    /* Top Action Bar Buttons (Camera Controls) */
+    .camera-hud-controls {
+      position: fixed; top: 20px; right: 20px; z-index: 50; display: flex; gap: 10px;
+    }
+    .hud-btn {
+      background: var(--glass); border: 1px solid var(--glass-border); color: var(--accent-cyan);
+      font-family: var(--font-code); font-size: 0.8rem; font-weight: 600; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(12px);
+      display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,242,254,0.15);
+    }
+    .hud-btn:hover { background: rgba(0, 242, 254, 0.2); transform: translateY(-2px); border-color: var(--accent-cyan); box-shadow: 0 6px 25px rgba(0,242,254,0.3); }
+    .hud-btn:active { transform: translateY(0); }
+
+    /* Mobile Virtual Joystick Touch Controls */
+    #mobile-controls {
+      position: fixed; bottom: 30px; left: 30px; z-index: 60; display: none; width: 120px; height: 120px;
+      background: rgba(255, 255, 255, 0.05); border: 2px solid var(--glass-border); border-radius: 50%;
+      touch-action: none; backdrop-filter: blur(8px);
+    }
+    #joystick-stick {
+      position: absolute; top: 50%; left: 50%; width: 45px; height: 45px;
+      background: var(--accent-cyan); border-radius: 50%; transform: translate(-50%, -50%);
+      opacity: 0.85; box-shadow: 0 0 15px var(--accent-cyan); pointer-events: none;
+    }
+
+    /* Modal Info Window / Windows-like OS UI */
+    .project-modal {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -45%) scale(0.95);
+      width: 90%; max-width: 560px; background: var(--glass); backdrop-filter: blur(35px);
+      border: 1px solid var(--glass-border); border-radius: 12px; padding: 0;
+      z-index: 20; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.95), 0 0 30px rgba(0,242,254,0.1); overflow: hidden;
+    }
+    .project-modal.active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+
+    /* Windows-style Titlebar */
+    .win-titlebar {
+      background: rgba(2, 6, 23, 0.95); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--glass-border); font-family: var(--font-code); font-size: 0.75rem; color: var(--accent-cyan);
+    }
+    .win-controls { display: flex; gap: 8px; }
+    .close-btn {
+      background: rgba(239, 68, 68, 0.2); border: 1px solid var(--accent-red); color: #fff; width: 24px; height: 24px;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .close-btn:hover { background: var(--accent-red); transform: scale(1.1); }
+
+    .modal-body-content { padding: 24px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .project-tag { font-family: var(--font-code); font-size: 0.7rem; color: var(--accent-cyan); background: rgba(0,242,254,0.12); padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(0,242,254,0.3); }
+    .project-tag.danger { color: var(--accent-red); background: rgba(239,68,68,0.15); border: 1px solid var(--accent-red); }
+    .project-tag.info { color: var(--accent-gold); background: rgba(255,183,3,0.15); border: 1px solid var(--accent-gold); }
+
+    .modal-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+    .modal-desc { font-size: 0.85rem; color: rgba(255,255,255,0.85); line-height: 1.6; font-family: var(--font-code); }
+
+    /* Action Link Button Inside Modal */
+    .modal-link-btn {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 15px; padding: 8px 16px;
+      background: rgba(0, 242, 254, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan);
+      border-radius: 6px; font-family: var(--font-code); font-size: 0.8rem; font-weight: 600;
+      text-decoration: none; transition: all 0.2s ease;
+    }
+    .modal-link-btn:hover { background: var(--accent-cyan); color: var(--bg-dark); box-shadow: 0 0 15px var(--accent-cyan); }
+
+    /* Windows Control Center Panel inside Computer UI */
+    .os-control-panel {
+      margin-top: 15px; background: rgba(2, 6, 23, 0.85); border: 1px solid var(--glass-border);
+      border-radius: 8px; padding: 14px; display: flex; align-items: center; justify-content: space-between;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+    }
+    .os-control-info span { display: block; font-size: 0.75rem; font-family: var(--font-code); color: rgba(255,255,255,0.6); }
+    .os-control-info strong { font-size: 0.9rem; font-family: var(--font-title); color: #fff; }
+    
+    .os-toggle-btn {
+      background: var(--accent-green); border: none; color: #020617; font-family: var(--font-code);
+      font-weight: 600; padding: 8px 16px; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 0 10px rgba(16,185,129,0.4);
+    }
+    .os-toggle-btn.off { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(239,68,68,0.4); }
+    .os-toggle-btn:hover { opacity: 0.9; transform: scale(1.05); }
+
+    /* Live Terminal Console UI */
+    .terminal-console {
+      margin-top: 15px; background: rgba(2, 6, 23, 0.95); border: 1px solid var(--accent-cyan);
+      border-radius: 8px; padding: 12px; font-family: var(--font-code); font-size: 0.75rem;
+      color: var(--accent-cyan); max-height: 180px; overflow-y: auto; text-shadow: 0 0 8px rgba(0,242,254,0.6);
+      box-shadow: inset 0 0 10px rgba(0,242,254,0.15);
+    }
+    .terminal-line { margin-bottom: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .terminal-timestamp { color: rgba(255,255,255,0.4); }
+
+    /* Interactive Command Input */
+    .terminal-input-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .terminal-prompt { color: var(--accent-green); font-weight: bold; }
+    .terminal-input {
+      background: transparent; border: none; outline: none; color: #fff;
+      font-family: var(--font-code); font-size: 0.75rem; flex: 1;
+    }
+
+    /* Hover Label */
+    .cursor-label {
+      position: fixed; pointer-events: none; z-index: 100;
+      font-family: var(--font-code); font-size: 0.7rem; font-weight: 600; color: var(--accent-cyan);
+      background: rgba(2,6,23,0.95); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--accent-cyan);
+      opacity: 0; transition: opacity 0.2s ease; transform: translate(15px, 15px);
+      box-shadow: 0 0 15px rgba(0,242,254,0.3); backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- GAMIFIED SCI-FI LOADING SCREEN UI -->
+  <div id="loading-screen">
+    <div class="loading-box">
+      <div class="spinner-container">
+        <div class="spinner-outer"></div>
+        <div class="spinner-inner"></div>
+        <div class="spinner-core"></div>
+      </div>
+      <div class="loading-title">CELESTIA LAB</div>
+      <div class="loading-bar-container">
+        <div id="loading-bar" class="loading-bar"></div>
+      </div>
+      <div class="loading-status-row">
+        <span id="loading-text">BOOTSTRAPPING QUANTUM CHAMBER...</span>
+        <span id="loading-percentage" class="loading-percentage">0%</span>
+      </div>
+      <div class="loading-console" id="loading-console">
+        > Allocating VRAM buffers...<br>
+        > Mounting spatial grid matrix...
+      </div>
+    </div>
+  </div>
+
+  <canvas id="webgl-canvas"></canvas>
+  <div id="cursor-hint" class="cursor-label">INSPECT</div>
+
+  <!-- Camera HUD Buttons -->
+  <div class="camera-hud-controls">
+    <button class="hud-btn" id="btn-first-person"><i class="fa-solid fa-person"></i> First Person</button>
+    <button class="hud-btn" id="btn-reset-cam" onclick="resetOverview()"><i class="fa-solid fa-rotate-right"></i> Reset Camera</button>
+  </div>
+
+  <!-- Mobile Touch Joystick -->
+  <div id="mobile-controls">
+    <div id="joystick-stick"></div>
+  </div>
+
+  <div id="project-modal" class="project-modal">
+    <div class="win-titlebar">
+      <span id="win-title-bar-text"><i class="fa-brands fa-windows"></i> CelestiaOS — Mainframe Control Center</span>
+      <div class="win-controls">
+        <button class="close-btn" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div class="modal-body-content">
+      <div class="modal-header">
+        <span id="m-tag" class="project-tag">CONTAINMENT POD</span>
+      </div>
+      <h2 id="m-title" class="modal-title">Pod Details</h2>
+      <p id="m-desc" class="modal-desc">Description...</p>
+      <div id="m-link-container"></div>
+      <div id="os-control-wrapper" style="display: none;">
+        <div class="os-control-panel">
+          <div class="os-control-info">
+            <span>ENVIRONMENTAL SYSTEM</span>
+            <strong id="lab-light-status-text">Laboratory Main Lights: ACTIVE</strong>
+          </div>
+          <button id="os-power-btn" class="os-toggle-btn" onclick="toggleRoomLighting()">TURN OFF</button>
+        </div>
+      </div>
+      <div id="m-terminal" class="terminal-console" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    // System Loader Manager dengan Visual Console Log Ala Game
+    const LoadingManager = {
+      progress: 0,
+      isFirstFrameRendered: false,
+      logs: [
+        "Allocating memory blocks...",
+        "Linking Three.js WebGL Pipeline...",
+        "Compiling PBR shaders & environment maps...",
+        "Calibrating volumetric light cones...",
+        "Loading audio synthesize engine...",
+        "Mounting interactive telemetry nodes..."
+      ],
+      updateProgress(targetProgress, text) {
+        if (this.progress < targetProgress) {
+          this.progress = targetProgress;
+          const bar = document.getElementById('loading-bar');
+          const percent = document.getElementById('loading-percentage');
+          const statusText = document.getElementById('loading-text');
+          const consoleEl = document.getElementById('loading-console');
+
+          if (bar) bar.style.width = `${Math.min(this.progress, 100)}%`;
+          if (percent) percent.textContent = `${Math.round(Math.min(this.progress, 100))}%`;
+          if (statusText && text) statusText.textContent = text;
+
+          if (consoleEl) {
+            const nextLog = this.logs.shift() || "Synchronizing core frames...";
+            consoleEl.innerHTML = `> ${nextLog}<br>> ${text}`;
+          }
+        }
+      },
+      complete() {
+        this.updateProgress(100, "SYSTEM READY — ENTERING LAB");
+        setTimeout(() => {
+          const screen = document.getElementById('loading-screen');
+          if (screen) screen.classList.add('hidden');
+        }, 400);
+      }
+    };
+
+    // Sinkronisasi status awal pemuatan aset
+    document.addEventListener('DOMContentLoaded', () => {
+      LoadingManager.updateProgress(20, "Loading Three.js core & shaders...");
+    });
+
+    let scene, camera, renderer, controls, pointerControls;
+    let composer, bloomPass; // Bloom Effect Post-Processing
+    let interactiveObjects = [];
+    let pendantLights = [];
+    let roomLights = [];
+    let roomMaterials = [];
+    let flowPipes = [];
+    let serverLEDs = [];
+    let exitSignFace;
+    let lightSwitchBtn;
+    let isLightOn = true;
+    let raycaster, mouse, hoveredObj = null;
+
+    // Environmental state variables
+    let currentChamberTemp = 18.0;
+
+    // Puzzle Mini-Game States
+    let puzzleActive = false;
+    let puzzleStage = 1; // Stage 1: Frequency Calibration, Stage 2: Quantum Sequence, Stage 3: Security Passcode
+    let puzzleTargetFreq = 0;
+    let puzzleSequence = [];
+    let puzzleSeqIndex = 0;
+    let puzzlePasscode = 0;
+
+    // DNA Hologram Object
+    let dnaHologramGroup;
+
+    // Prevent Double Trigger Bug
+    let isClickBlocked = false;
+
+    // Volumetric Fog Cones & Dust Particles
+    let lightDustGroup;
+    let volumetricCones = [];
+
+    // Procedural Noise Textures for PBR Realism
+    let bumpTextureFloor, bumpTextureMetal;
+
+    // WASD Movement & Soft Collision
+    const moveKeys = { w: false, a: false, s: false, d: false };
+    const clock = new THREE.Clock();
+    
+    const MOVE_SPEED = 4.5; 
+
+    // First Person Mode States
+    let isFirstPerson = false;
+    let mobileMoveVector = { x: 0, y: 0 };
+    let isTouchDevice = false;
+
+    // Room Bounds for Soft Collision & Rebound
+    const ROOM_BOUNDS = {
+      minX: -9.5,  maxX: 9.5,
+      minZ: -7.5,  maxZ: 7.5,
+      minY: 1.0,   maxY: 6.5
+    };
+
+    let isModalOpen = false;
+
+    // Explosion Particles
+    let explosionParticles, explosionLight;
+    let isExploding = false;
+    let isEmergencyFlashing = false;
+
+    // Default Camera Position & Target
+    const DEFAULT_CAM_POS = { x: 0, y: 3.5, z: 7.0 };
+    const DEFAULT_TARGET_POS = { x: 0, y: 1.2, z: -1.5 };
+
+    // Containment Pod Data
+    const podData = [
+      { id: "pod_1", name: "Specimen A: Phiedoro", desc: "Project Phiedoro", filled: true, isFailed: false, color: 0xffb703, pos: { x: -5.2, y: 1.0, z: -2.0 }, url: "https://phiedoro.vercel.app" },
+      { id: "pod_2", name: "Specimen B: Proteica", desc: "Project Proteica", filled: true, isFailed: false, color: 0x10b981, pos: { x: -3.7, y: 1.0, z: -2.0 }, url: "https://proteica.vercel.app" },
+      { id: "pod_3", name: "Specimen C: Alarm Gempa", desc: "Project Alarm Gempa", filled: true, isFailed: false, color: 0x00f2fe, pos: { x: -2.2, y: 1.0, z: -2.0 }, url: "https://alarmgempa.vercel.app" },
+      { id: "pod_4", name: "EXPERIMENT #04 [CRITICAL]", desc: "WARNING: Thermal runaway detected! Particle containment breach in progress.", filled: true, isFailed: true, color: 0xef4444, pos: { x: -0.7, y: 1.0, z: -2.0 } },
+      { id: "pod_5", name: "Empty Pod 05", desc: "Vacuum sealed containment chamber. Ready for sample deployment.", filled: false, isFailed: false, color: 0x334155, pos: { x: 0.7, y: 1.0, z: -2.0 } },
+      { id: "pod_6", name: "Empty Pod 06", desc: "Vacuum sealed containment chamber. Ready for sample deployment.", filled: false, isFailed: false, color: 0x334155, pos: { x: 2.2, y: 1.0, z: -2.0 } },
+      { id: "pod_7", name: "Empty Pod 07", desc: "Vacuum sealed containment chamber. Ready for sample deployment.", filled: false, isFailed: false, color: 0x334155, pos: { x: 3.7, y: 1.0, z: -2.0 } },
+      { id: "pod_8", name: "Empty Pod 08", desc: "Vacuum sealed containment chamber. Ready for sample deployment.", filled: false, isFailed: false, color: 0x334155, pos: { x: 5.2, y: 1.0, z: -2.0 } },
+    ];
+
+    // Web Audio API Audio Engine
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let ambientGainNode = null;
+    let ambientFilterNode = null;
+    let isAmbientPlaying = false;
+    const SERVER_RACK_POS = new THREE.Vector3(-9.5, 2.5, -6.5);
+
+    function initAmbientSound() {
+      if (isAmbientPlaying) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      // White Noise Generator untuk Ambient Server Hum
+      const bufferSize = audioCtx.sampleRate * 2;
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = audioCtx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      // Lowpass Filter untuk menghasilkan dengung mesin lab rendah
+      ambientFilterNode = audioCtx.createBiquadFilter();
+      ambientFilterNode.type = 'lowpass';
+      ambientFilterNode.frequency.setValueAtTime(140, audioCtx.currentTime);
+
+      ambientGainNode = audioCtx.createGain();
+      ambientGainNode.gain.setValueAtTime(0.01, audioCtx.currentTime);
+
+      whiteNoise.connect(ambientFilterNode);
+      ambientFilterNode.connect(ambientGainNode);
+      ambientGainNode.connect(audioCtx.destination);
+
+      whiteNoise.start();
+      isAmbientPlaying = true;
+    }
+
+    function updateAmbientVolume() {
+      if (!ambientGainNode) return;
+      const dist = camera.position.distanceTo(SERVER_RACK_POS);
+      // Volume meredup seiring menjauhnya kamera dari server rack (Max 15m)
+      const maxDist = 15.0;
+      let targetVol = 1.0 - Math.min(dist / maxDist, 1.0);
+      targetVol = Math.pow(targetVol, 2) * 0.22; // Master Ambient Volume
+      ambientGainNode.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.1);
+    }
+
+    function playClickSound() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      initAmbientSound();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(850, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    }
+
+    function playAlarmSound() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      initAmbientSound();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // Helper: Generate Procedural Micro-Noise Texture
+    function generateNoiseTexture(width, height, factor) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.createImageData(width, height);
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        const val = Math.floor(Math.random() * factor);
+        imgData.data[i] = val;
+        imgData.data[i + 1] = val;
+        imgData.data[i + 2] = val;
+        imgData.data[i + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    function init() {
+      LoadingManager.updateProgress(40, "Building 3D Chamber Geometry...");
+      const container = document.getElementById('webgl-canvas');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+      scene.fog = new THREE.FogExp2(0x020617, 0.015);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(DEFAULT_CAM_POS.x, DEFAULT_CAM_POS.y, DEFAULT_CAM_POS.z);
+
+      renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+
+      // Post-Processing & Bloom Pass Setup
+      const renderScene = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.65, // Strength Bloom Glow
+        0.4,  // Radius
+        0.85  // Threshold
+      );
+
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderScene);
+      composer.addPass(bloomPass);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+      controls.minDistance = 1;
+      controls.maxDistance = 10;
+      controls.target.set(DEFAULT_TARGET_POS.x, DEFAULT_TARGET_POS.y, DEFAULT_TARGET_POS.z);
+
+      // Pointer Lock Controls untuk First Person
+      pointerControls = new THREE.PointerLockControls(camera, document.body);
+      pointerControls.addEventListener('unlock', () => {
+        if (isFirstPerson) exitFirstPerson();
+      });
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      bumpTextureFloor = generateNoiseTexture(256, 256, 40);
+      bumpTextureFloor.repeat.set(8, 8);
+      bumpTextureMetal = generateNoiseTexture(128, 128, 25);
+      bumpTextureMetal.repeat.set(4, 4);
+
+      LoadingManager.updateProgress(65, "Compiling Procedural PBR Textures & Materials...");
+      setupLighting();
+      buildEnclosedChamber();
+
+      LoadingManager.updateProgress(85, "Initializing Volumetric Lighting & Sound Engine...");
+      setupVolumetricLightingAndDust();
+      setupExplosionParticles();
+      setupMobileControls();
+
+      window.addEventListener('resize', onResize);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('click', onClick);
+
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+
+      // Control Buttons Listeners
+      document.getElementById('btn-first-person').addEventListener('click', (e) => {
+        e.stopPropagation();
+        enterFirstPerson();
+      });
+
+      const modalClose = document.getElementById('modal-close-btn');
+      modalClose.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        resetOverview();
+      });
+
+      LoadingManager.updateProgress(95, "Compiling WebGL Shaders & Framebuffer...");
+      animate();
+    }
+
+    function enterFirstPerson() {
+      if (isModalOpen) return;
+      playClickSound();
+      isFirstPerson = true;
+      controls.enabled = false;
+      
+      // Mengubah posisi kamera ke ketinggian mata manusia
+      gsap.to(camera.position, {
+        x: 0, y: 1.6, z: 4, duration: 1, ease: "power2.out", onComplete: () => {
+          if (!isTouchDevice) {
+            pointerControls.lock();
+          } else {
+            document.getElementById('mobile-controls').style.display = 'block';
+          }
+        }
+      });
+    }
+
+    function exitFirstPerson() {
+      isFirstPerson = false;
+      document.getElementById('mobile-controls').style.display = 'none';
+      if (pointerControls.isLocked) pointerControls.unlock();
+      controls.enabled = true;
+    }
+
+    function setupMobileControls() {
+      isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      const joystick = document.getElementById('mobile-controls');
+      const stick = document.getElementById('joystick-stick');
+      let touchId = null, startX = 0, startY = 0;
+
+      window.addEventListener('touchstart', (e) => {
+        if (!isFirstPerson) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.clientX < window.innerWidth / 2 && touchId === null) {
+            touchId = t.identifier;
+            startX = t.clientX;
+            startY = t.clientY;
+          }
+        }
+      });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!isFirstPerson || touchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === touchId) {
+            let dx = t.clientX - startX;
+            let dy = t.clientY - startY;
+            let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+            let angle = Math.atan2(dy, dx);
+            
+            stick.style.transform = `translate(-50%, -50%) translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+            mobileMoveVector.x = (Math.cos(angle) * dist) / 40;
+            mobileMoveVector.y = (Math.sin(angle) * dist) / 40;
+          }
+        }
+      });
+
+      const resetStick = (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            touchId = null;
+            stick.style.transform = 'translate(-50%, -50%)';
+            mobileMoveVector.x = 0;
+            mobileMoveVector.y = 0;
+          }
+        }
+      };
+
+      window.addEventListener('touchend', resetStick);
+      window.addEventListener('touchcancel', resetStick);
+    }
+
+    function onKeyDown(e) {
+      const k = e.key.toLowerCase();
+      if (k in moveKeys) moveKeys[k] = true;
+    }
+
+    function onKeyUp(e) {
+      const k = e.key.toLowerCase();
+      if (k in moveKeys) moveKeys[k] = false;
+    }
+
+    /* SISTEM PENANGANAN WASD CONTROL DI MODE NORMAL & FIRST PERSON */
+    function updateMovement(delta) {
+      if (isModalOpen) return;
+
+      const speed = MOVE_SPEED * delta;
+      const moveDir = new THREE.Vector3();
+
+      if (isFirstPerson) {
+        // First Person Movement Logic
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const side = new THREE.Vector3();
+        side.crossVectors(forward, camera.up).normalize();
+
+        if (moveKeys.w || mobileMoveVector.y < -0.2) moveDir.add(forward);
+        if (moveKeys.s || mobileMoveVector.y > 0.2) moveDir.sub(forward);
+        if (moveKeys.d || mobileMoveVector.x > 0.2) moveDir.add(side);
+        if (moveKeys.a || mobileMoveVector.x < -0.2) moveDir.sub(side);
+
+        if (moveDir.lengthSq() > 0) {
+          moveDir.normalize().multiplyScalar(speed);
+          camera.position.add(moveDir);
+
+          // Soft Room Boundary Lock
+          camera.position.x = Math.max(ROOM_BOUNDS.minX, Math.min(ROOM_BOUNDS.maxX, camera.position.x));
+          camera.position.z = Math.max(ROOM_BOUNDS.minZ, Math.min(ROOM_BOUNDS.maxZ, camera.position.z));
+        }
+      } else {
+        // Normal OrbitControls WASD Navigation
+        if (!controls || !controls.enabled) return;
+
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+
+        const side = new THREE.Vector3();
+        side.crossVectors(forward, camera.up).normalize();
+
+        if (moveKeys.w) moveDir.add(forward);
+        if (moveKeys.s) moveDir.sub(forward);
+        if (moveKeys.d) moveDir.add(side);
+        if (moveKeys.a) moveDir.sub(side);
+
+        if (moveDir.lengthSq() > 0) {
+          moveDir.normalize().multiplyScalar(speed);
+          
+          // Geser Kamera dan Target OrbitControls secara bersamaan
+          camera.position.add(moveDir);
+          controls.target.add(moveDir);
+
+          // Boundary limit
+          camera.position.x = Math.max(ROOM_BOUNDS.minX, Math.min(ROOM_BOUNDS.maxX, camera.position.x));
+          camera.position.z = Math.max(ROOM_BOUNDS.minZ, Math.min(ROOM_BOUNDS.maxZ, camera.position.z));
+        }
+      }
+    }
+
+    function setupLighting() {
+      const ambient = new THREE.AmbientLight(0x0f172a, 0.9);
+      scene.add(ambient);
+
+      const ceilingLight1 = new THREE.PointLight(0xe2e8f0, 1.6, 25);
+      ceilingLight1.position.set(-4, 7.0, 0);
+      ceilingLight1.castShadow = true;
+      ceilingLight1.shadow.mapSize.width = 1024;
+      ceilingLight1.shadow.mapSize.height = 1024;
+      ceilingLight1.shadow.bias = -0.0003;
+      scene.add(ceilingLight1);
+      roomLights.push(ceilingLight1);
+
+      const ceilingLight2 = new THREE.PointLight(0xe2e8f0, 1.6, 25);
+      ceilingLight2.position.set(4, 7.0, 0);
+      ceilingLight2.castShadow = true;
+      ceilingLight2.shadow.mapSize.width = 1024;
+      ceilingLight2.shadow.mapSize.height = 1024;
+      ceilingLight2.shadow.bias = -0.0003;
+      scene.add(ceilingLight2);
+      roomLights.push(ceilingLight2);
+
+      const cyanGlow = new THREE.PointLight(0x00f2fe, 1.5, 16);
+      cyanGlow.position.set(0, 2.0, -2);
+      scene.add(cyanGlow);
+
+      explosionLight = new THREE.PointLight(0xef4444, 0, 15);
+      explosionLight.position.set(-0.7, 1.8, -2.0);
+      scene.add(explosionLight);
+    }
+
+    function toggleRoomLighting() {
+      playClickSound();
+      isLightOn = !isLightOn;
+
+      roomLights.forEach(light => {
+        gsap.to(light, { intensity: isLightOn ? 1.6 : 0, duration: 0.8 });
+      });
+
+      pendantLights.forEach(p => {
+        if (isLightOn && !p.isOn) {
+          p.isOn = true;
+          gsap.to(p.light, { intensity: 1.8, duration: 0.8 });
+          p.bulb.material.emissiveIntensity = 2.0;
+        } else if (!isLightOn && p.isOn) {
+          p.isOn = false;
+          gsap.to(p.light, { intensity: 0, duration: 0.8 });
+          p.bulb.material.emissiveIntensity = 0;
+        }
+      });
+
+      volumetricCones.forEach(cone => {
+        gsap.to(cone.material, { opacity: isLightOn ? 0.055 : 0.005, duration: 0.8 });
+      });
+
+      if (lightDustGroup) {
+        lightDustGroup.visible = isLightOn;
+      }
+
+      if (lightSwitchBtn) {
+        lightSwitchBtn.material.color.setHex(isLightOn ? 0x10b981 : 0xef4444);
+        lightSwitchBtn.material.emissive.setHex(isLightOn ? 0x10b981 : 0xef4444);
+      }
+
+      // Update UI button jika panel OS komputer terbuka
+      const osBtn = document.getElementById('os-power-btn');
+      const osStatusText = document.getElementById('lab-light-status-text');
+      if (osBtn && osStatusText) {
+        if (isLightOn) {
+          osBtn.textContent = "TURN OFF";
+          osBtn.classList.remove('off');
+          osStatusText.textContent = "Laboratory Main Lights: ACTIVE";
+        } else {
+          osBtn.textContent = "TURN ON";
+          osBtn.classList.add('off');
+          osStatusText.textContent = "Laboratory Main Lights: OFF";
+        }
+      }
+    }
+
+    /* VOLUMETRIC LIGHTING / FOG CONES & REALISTIC LIGHT-BOUND DUST PARTICLES */
+    function setupVolumetricLightingAndDust() {
+      lightDustGroup = new THREE.Group();
+
+      const lightCenters = [-4.5, 0, 4.5];
+      
+      const fogGeo = new THREE.CylinderGeometry(0.35, 2.6, 4.5, 32, 1, true);
+
+      lightCenters.forEach(x => {
+        const fogMat = new THREE.MeshBasicMaterial({
+          color: 0x00f2fe,
+          transparent: true,
+          opacity: 0.055,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        });
+
+        const fogMesh = new THREE.Mesh(fogGeo, fogMat);
+        fogMesh.position.set(x, 3.0, -2.0);
+        lightDustGroup.add(fogMesh);
+        volumetricCones.push(fogMesh);
+      });
+
+      const dustPerCone = 140;
+      const totalDust = lightCenters.length * dustPerCone;
+      const dustGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(totalDust * 3);
+      const dustData = [];
+
+      let idx = 0;
+      lightCenters.forEach(cx => {
+        for (let i = 0; i < dustPerCone; i++) {
+          const height = Math.random() * 4.2; 
+          
+          const topR = 0.35;
+          const bottomR = 2.6;
+          const maxRadiusAtHeight = topR + (height / 4.2) * (bottomR - topR);
+          const currentRadius = maxRadiusAtHeight * Math.sqrt(Math.random()); 
+          const angle = Math.random() * Math.PI * 2;
+
+          const px = cx + Math.cos(angle) * currentRadius;
+          const py = 5.2 - height;
+          const pz = -2.0 + Math.sin(angle) * currentRadius;
+
+          positions[idx * 3] = px;
+          positions[idx * 3 + 1] = py;
+          positions[idx * 3 + 2] = pz;
+
+          dustData.push({
+            centerX: cx,
+            centerZ: -2.0,
+            baseY: py,
+            height: height,
+            radius: currentRadius,
+            angle: angle,
+            speedY: Math.random() * 0.003 + 0.001,
+            swaySpeed: Math.random() * 1.5 + 0.5,
+            swayAmp: Math.random() * 0.08 + 0.02
+          });
+          idx++;
+        }
+      });
+
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 32; canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.3, 'rgba(0,242,254,0.8)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 32, 32);
+
+      const dustTex = new THREE.CanvasTexture(canvas);
+
+      const dustMat = new THREE.PointsMaterial({
+        color: 0xe0f7fa,
+        size: 0.045,
+        map: dustTex,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const dustParticles = new THREE.Points(dustGeo, dustMat);
+      dustParticles.userData = { dustData: dustData };
+      lightDustGroup.add(dustParticles);
+
+      scene.add(lightDustGroup);
+    }
+
+    function buildWallSignage(parent) {
+      const signCanvas = document.createElement('canvas');
+      signCanvas.width = 1536;
+      signCanvas.height = 256;
+      const ctx = signCanvas.getContext('2d');
+
+      ctx.clearRect(0, 0, 1536, 256);
+      
+      ctx.fillStyle = '#00f2fe';
+      ctx.font = 'bold 76px "Orbitron", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 25;
+      ctx.fillText('Sector B: Celestia Laboratory', 768, 128);
+
+      const signTex = new THREE.CanvasTexture(signCanvas);
+      const signMat = new THREE.MeshStandardMaterial({
+        map: signTex,
+        transparent: true,
+        emissive: 0x00f2fe,
+        emissiveIntensity: 2.5,
+        roughness: 0.1
+      });
+
+      const signBoard = new THREE.Mesh(new THREE.PlaneGeometry(10.5, 2.0), signMat);
+      signBoard.position.set(0, 5.2, 9.75); 
+      signBoard.rotation.y = Math.PI; 
+      parent.add(signBoard);
+    }
+
+    function buildEnclosedChamber() {
+      const labGroup = new THREE.Group();
+
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.45, bumpMap: bumpTextureMetal, bumpScale: 0.012 });
+      const floorMat = new THREE.MeshStandardMaterial({ color: 0x070d19, roughness: 0.1, metalness: 0.85, bumpMap: bumpTextureFloor, bumpScale: 0.015 });
+      const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.5, metalness: 0.4 });
+      
+      roomMaterials.push(wallMat, floorMat, ceilingMat);
+
+      // Floor & Grid
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 20), floorMat);
+      floor.position.y = -0.1;
+      floor.receiveShadow = true;
+      labGroup.add(floor);
+
+      const grid = new THREE.GridHelper(24, 24, 0x00f2fe, 0x1e293b);
+      grid.position.y = 0.01;
+      labGroup.add(grid);
+
+      buildHazardStripes(labGroup);
+
+      // Ceiling
+      const ceiling = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 20), ceilingMat);
+      ceiling.position.y = 8.0;
+      labGroup.add(ceiling);
+
+      const beamMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.25 });
+      for (let i = -10; i <= 10; i += 5) {
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 20), beamMat);
+        beam.position.set(i, 7.7, 0);
+        beam.castShadow = true;
+        labGroup.add(beam);
+      }
+
+      buildInteractivePendantLights(labGroup);
+      buildNeonStrips(labGroup);
+      buildAnimatedPipes(labGroup);
+
+      // Room Walls
+      const backWall = new THREE.Mesh(new THREE.BoxGeometry(24, 8, 0.4), wallMat);
+      backWall.position.set(0, 4, -10); backWall.receiveShadow = true; labGroup.add(backWall);
+
+      const frontWall = new THREE.Mesh(new THREE.BoxGeometry(24, 8, 0.4), wallMat);
+      frontWall.position.set(0, 4, 10); frontWall.receiveShadow = true; labGroup.add(frontWall);
+
+      const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.4, 8, 20), wallMat);
+      leftWall.position.set(-12, 4, 0); leftWall.receiveShadow = true; labGroup.add(leftWall);
+
+      const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.4, 8, 20), wallMat);
+      rightWall.position.set(12, 4, 0); rightWall.receiveShadow = true; labGroup.add(rightWall);
+
+      buildWallSignage(labGroup);
+
+      buildPureScienceWhiteboard(labGroup);
+      buildHVACAndPipes(labGroup);
+      buildSafetyEquipment(labGroup);
+      buildAirlockDoorWithExitSign(labGroup);
+
+      // Main Bench
+      const benchMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.9, roughness: 0.2, bumpMap: bumpTextureMetal, bumpScale: 0.005 });
+      const mainBench = new THREE.Mesh(new THREE.BoxGeometry(14, 0.8, 2.5), benchMat);
+      mainBench.position.set(0, 0.4, -2.0);
+      mainBench.castShadow = true; mainBench.receiveShadow = true;
+      labGroup.add(mainBench);
+
+      buildComputerWorkstation(labGroup);
+      buildServerRacks(labGroup);
+      buildAnalysisWorkbench(labGroup);
+      buildAdditionalLabFurniture(labGroup);
+
+      // Containment Pods
+      podData.forEach(data => buildPod(labGroup, data));
+
+      scene.add(labGroup);
+    }
+
+    function buildAnimatedPipes(parent) {
+      const pipeGroup = new THREE.Group();
+      pipeGroup.position.set(-11.7, 5, 0);
+      pipeGroup.rotation.x = Math.PI / 2;
+
+      const pipeMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.15 });
+      const flowMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.0 });
+
+      for(let i = 0; i < 2; i++) {
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 19), pipeMat);
+        pipe.position.x = i * 0.3;
+        pipeGroup.add(pipe);
+
+        const flowStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 19), flowMat);
+        flowStrip.position.set(i * 0.3, 0, 0.08);
+        flowPipes.push(flowStrip);
+        pipeGroup.add(flowStrip);
+      }
+      parent.add(pipeGroup);
+    }
+
+    function buildInteractivePendantLights(parent) {
+      const positions = [-4.5, 0, 4.5];
+
+      positions.forEach((x, index) => {
+        const pGroup = new THREE.Group();
+        pGroup.position.set(x, 5.25, -2.0);
+
+        const wire = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.015, 0.015, 2.5),
+          new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.95, roughness: 0.1 })
+        );
+        wire.position.y = 1.25;
+        pGroup.add(wire);
+
+        const shade = new THREE.Mesh(
+          new THREE.ConeGeometry(0.4, 0.35, 16, 1, true),
+          new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, side: THREE.DoubleSide, roughness: 0.2 })
+        );
+        pGroup.add(shade);
+
+        const bulbMat = new THREE.MeshStandardMaterial({
+          color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.5
+        });
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), bulbMat);
+        bulb.position.y = -0.05;
+        pGroup.add(bulb);
+
+        const pLight = new THREE.PointLight(0x00f2fe, 2.2, 9);
+        pLight.position.y = -0.1;
+        pLight.castShadow = true;
+        pGroup.add(pLight);
+
+        const hitBox = new THREE.Mesh(
+          new THREE.SphereGeometry(0.5, 16, 16),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        hitBox.userData = { type: "pendant_light", index: index };
+        pGroup.add(hitBox);
+
+        interactiveObjects.push(hitBox);
+        pendantLights.push({ group: pGroup, light: pLight, bulb: bulb, isOn: true, index: index });
+
+        parent.add(pGroup);
+      });
+    }
+
+    function buildPureScienceWhiteboard(parent) {
+      const wbGroup = new THREE.Group();
+      wbGroup.position.set(11.75, 3.5, 0);
+      wbGroup.rotation.y = -Math.PI / 2;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+      for (let y = 0; y < canvas.height; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+      ctx.fillStyle = '#0284c7'; ctx.font = 'bold 24px "Fira Code", monospace';
+      ctx.fillText('QUANTUM FIELD EQUATIONS & GENERAL RELATIVITY', 40, 50);
+
+      ctx.fillStyle = '#0f172a'; ctx.font = '20px "Space Grotesk", sans-serif';
+      ctx.fillText('1. Maxwell-Faraday:   ∇ × E = -∂B / ∂t', 40, 110);
+      ctx.fillText('2. Schrödinger Eq:    iħ (∂Ψ/∂t) = ĤΨ(r,t)', 40, 160);
+      ctx.fillText('3. Relativistic E:    E² = (pc)² + (m₀c²)²', 40, 210);
+
+      ctx.fillStyle = '#dc2626'; ctx.font = '20px "Space Grotesk", sans-serif';
+      ctx.fillText('4. Einstein Field:    R_μν - ½ R g_μν + Λ g_μν = 8πG/c⁴ T_μν', 40, 270);
+
+      ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 3; ctx.strokeRect(580, 310, 220, 130);
+      ctx.fillStyle = '#0284c7'; ctx.font = '16px monospace';
+      ctx.fillText('[  Ψ₁₁   Ψ₁₂   Ψ₁₃  ]', 595, 350);
+      ctx.fillText('[  Ψ₂₁   Ψ₂₂   Ψ₂₃  ]', 595, 380);
+      ctx.fillText('[  Ψ₃₁   Ψ₃₂   Ψ₃₃  ]', 595, 410);
+
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(320, 265, 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#475569'; ctx.font = 'italic 16px sans-serif';
+      ctx.fillText('*Note: Verify boundary conditions at infinite potential barrier.', 40, 460);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.2 });
+      const boardMat = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.25 });
+
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.4, 0.08), frameMat);
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.2), boardMat);
+      board.position.z = 0.05;
+
+      const wbHitbox = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.2), new THREE.MeshBasicMaterial({ visible: false }));
+      wbHitbox.position.z = 0.06;
+      wbHitbox.userData = { type: "whiteboard" };
+      interactiveObjects.push(wbHitbox);
+
+      wbGroup.add(frame, board, wbHitbox);
+      parent.add(wbGroup);
+    }
+
+    function buildHazardStripes(parent) {
+      const stripeGroup = new THREE.Group();
+      const stripeMat = new THREE.MeshBasicMaterial({ color: 0xffb703 });
+
+      for (let i = -7; i <= 7; i += 0.8) {
+        const stripe = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.1), stripeMat);
+        stripe.rotation.x = -Math.PI / 2;
+        stripe.rotation.z = Math.PI / 4;
+        stripe.position.set(i, 0.02, -0.6);
+        stripeGroup.add(stripe);
+      }
+      parent.add(stripeGroup);
+    }
+
+    function buildNeonStrips(parent) {
+      const cyanNeonMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.5 });
+      const amberNeonMat = new THREE.MeshStandardMaterial({ color: 0xffb703, emissive: 0xffb703, emissiveIntensity: 2.0 });
+
+      const stripBack = new THREE.Mesh(new THREE.BoxGeometry(23.6, 0.05, 0.05), cyanNeonMat);
+      stripBack.position.set(0, 0.2, -9.75); parent.add(stripBack);
+
+      const stripBackTop = new THREE.Mesh(new THREE.BoxGeometry(23.6, 0.05, 0.05), amberNeonMat);
+      stripBackTop.position.set(0, 7.5, -9.75); parent.add(stripBackTop);
+    }
+
+    function buildHVACAndPipes(parent) {
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.9, roughness: 0.25, bumpMap: bumpTextureMetal, bumpScale: 0.01 });
+      const darkMetal = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.95, roughness: 0.3 });
+
+      const duct1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 19.5), metalMat); duct1.position.set(-8, 7.2, 0); duct1.castShadow = true;
+      const duct2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 19.5), metalMat); duct2.position.set(8, 7.2, 0); duct2.castShadow = true;
+      parent.add(duct1, duct2);
+
+      const acUnitGroup = new THREE.Group(); acUnitGroup.position.set(0, 6.2, -9.6);
+      const acBody = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.2, 0.6), metalMat);
+      const acGrille = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.4, 0.62), darkMetal); acGrille.position.y = -0.3;
+      const acLed = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.63), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.5 }));
+      acLed.position.set(1.4, 0.3, 0);
+
+      const acHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.3, 0.7), new THREE.MeshBasicMaterial({ visible: false }));
+      acHitbox.userData = { type: "ac_unit" }; interactiveObjects.push(acHitbox);
+
+      acUnitGroup.add(acBody, acGrille, acLed, acHitbox); parent.add(acUnitGroup);
+    }
+
+    function buildSafetyEquipment(parent) {
+      const extGroup = new THREE.Group(); extGroup.position.set(-11.6, 1.5, 2.0);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.7, roughness: 0.15 });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.8, 16), bodyMat); body.castShadow = true;
+
+      const extHitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 16), new THREE.MeshBasicMaterial({ visible: false }));
+      extHitbox.userData = { type: "fire_extinguisher" }; interactiveObjects.push(extHitbox);
+
+      extGroup.add(body, extHitbox); parent.add(extGroup);
+    }
+
+    function buildAirlockDoorWithExitSign(parent) {
+      const doorGroup = new THREE.Group();
+      doorGroup.position.set(-11.7, 0, -5.0);
+      doorGroup.rotation.y = Math.PI / 2;
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.95, roughness: 0.15 });
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(3.6, 5.0, 0.4), frameMat); frame.position.y = 2.5; doorGroup.add(frame);
+
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x020617, emissive: 0xef4444, emissiveIntensity: 0.3, roughness: 0.15 });
+      const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(3.2, 4.6, 0.15), doorMat); doorPanel.position.y = 2.5; doorGroup.add(doorPanel);
+
+      const switchBox = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.35, 0.1), frameMat);
+      switchBox.position.set(-2.0, 2.2, 0.2);
+      lightSwitchBtn = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.12), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.0 }));
+      lightSwitchBtn.position.set(-2.0, 2.2, 0.22);
+      lightSwitchBtn.userData = { type: "light_switch" };
+      interactiveObjects.push(lightSwitchBtn);
+      doorGroup.add(switchBox, lightSwitchBtn);
+
+      const keypadBox = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.08), frameMat);
+      keypadBox.position.set(1.7, 2.2, 0.2);
+      const keypadScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.0 }));
+      keypadScreen.position.set(1.7, 2.3, 0.25);
+      doorGroup.add(keypadBox, keypadScreen);
+
+      const exitSignGroup = new THREE.Group(); exitSignGroup.position.set(0, 5.35, 0.25);
+      const signHousing = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.45, 0.15), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85 }));
+      
+      const exitCanvas = document.createElement('canvas'); exitCanvas.width = 256; exitCanvas.height = 128;
+      const exitCtx = exitCanvas.getContext('2d');
+      exitCtx.fillStyle = '#064e3b'; exitCtx.fillRect(0, 0, 256, 128);
+      exitCtx.fillStyle = '#10b981'; exitCtx.font = 'bold 70px "Space Grotesk", sans-serif';
+      exitCtx.textAlign = 'center'; exitCtx.textBaseline = 'middle'; exitCtx.fillText('EXIT', 128, 64);
+
+      const exitTexture = new THREE.CanvasTexture(exitCanvas);
+      const exitFaceMat = new THREE.MeshStandardMaterial({ map: exitTexture, emissive: 0x10b981, emissiveIntensity: 2.0, roughness: 0.1 });
+      exitSignFace = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.38), exitFaceMat);
+      exitSignFace.position.z = 0.08;
+
+      exitSignGroup.add(signHousing, exitSignFace); doorGroup.add(exitSignGroup);
+
+      const doorHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.4, 5.0, 0.6), new THREE.MeshBasicMaterial({ visible: false }));
+      doorHitbox.position.y = 2.5; doorHitbox.userData = { type: "exit_door" };
+      doorGroup.add(doorHitbox);
+
+      interactiveObjects.push(doorHitbox); parent.add(doorGroup);
+    }
+
+    function buildAdditionalLabFurniture(parent) {
+      const extraGroup = new THREE.Group();
+      extraGroup.position.set(-8.5, 0, 4.5);
+
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.25 });
+      const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.55, roughness: 0.05, transmission: 0.9, reflectivity: 0.9 });
+      const greenGlowMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.0 });
+
+      const cabinet = new THREE.Mesh(new THREE.BoxGeometry(1.8, 3.2, 0.8), metalMat);
+      cabinet.position.set(0, 1.6, 0);
+      cabinet.castShadow = true; cabinet.receiveShadow = true;
+      extraGroup.add(cabinet);
+
+      const cabGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.8), glassMat);
+      cabGlass.position.set(0, 1.6, 0.41);
+      extraGroup.add(cabGlass);
+
+      const sideTable = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.85, 1.2), metalMat);
+      sideTable.position.set(3.2, 0.425, 0.5);
+      sideTable.castShadow = sideTable.receiveShadow = true;
+      extraGroup.add(sideTable);
+
+      const scopeBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.4, 16), metalMat);
+      scopeBase.position.set(2.8, 1.05, 0.5);
+      extraGroup.add(scopeBase);
+
+      const scopeLens = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6, 16), greenGlowMat);
+      scopeLens.position.set(2.8, 1.45, 0.45);
+      scopeLens.rotation.x = Math.PI / 6;
+      extraGroup.add(scopeLens);
+
+      const tankMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.95, roughness: 0.15 });
+      const cryoTank = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.0, 24), tankMat);
+      cryoTank.position.set(-2.2, 1.0, 1.5);
+      cryoTank.castShadow = true;
+      extraGroup.add(cryoTank);
+
+      const tankTop = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 0.3, 24), greenGlowMat);
+      tankTop.position.set(-2.2, 2.15, 1.5);
+      extraGroup.add(tankTop);
+
+      parent.add(extraGroup);
+    }
+
+    function buildComputerWorkstation(parent) {
+      const stationGroup = new THREE.Group(); stationGroup.position.set(6.5, 0, 3.5); stationGroup.rotation.y = -Math.PI / 4;
+      
+      const deskMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2, bumpMap: bumpTextureMetal, bumpScale: 0.01 });
+      const desk = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.85, 1.8), deskMat); desk.position.y = 0.425; desk.castShadow = desk.receiveShadow = true; stationGroup.add(desk);
+
+      const deskHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 1.9), new THREE.MeshBasicMaterial({ visible: false }));
+      deskHitbox.position.y = 0.425;
+      deskHitbox.userData = { type: "workstation_desk" };
+      interactiveObjects.push(deskHitbox);
+      stationGroup.add(deskHitbox);
+
+      const monitorMat = new THREE.MeshStandardMaterial({ color: 0x020617, metalness: 0.95, roughness: 0.15 });
+      const screenMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x00f2fe, emissiveIntensity: 1.2 });
+      
+      const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = '#00f2fe'; ctx.fillRect(0,0,64,64); ctx.fillStyle = '#000000';
+      for(let i=0; i<64; i+=4) ctx.fillRect(0, i, 64, 2);
+      const scanTex = new THREE.CanvasTexture(canvas); scanTex.wrapS = scanTex.wrapT = THREE.RepeatWrapping; scanTex.repeat.set(1, 4);
+      screenMat.emissiveMap = scanTex;
+
+      const mon1Frame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.05), monitorMat); mon1Frame.position.set(-0.6, 1.3, -0.2); mon1Frame.castShadow = true;
+      const mon1Screen = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.6), screenMat); mon1Screen.position.set(-0.6, 1.3, -0.17);
+      stationGroup.add(mon1Frame, mon1Screen);
+
+      const kbGroup = new THREE.Group();
+      kbGroup.position.set(-0.2, 0.875, 0.2);
+      
+      const kbBaseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.85, roughness: 0.15 });
+      const kbBase = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.03, 0.32), kbBaseMat); kbBase.castShadow = true; kbGroup.add(kbBase);
+
+      const keyMat = new THREE.MeshStandardMaterial({ color: 0x020617, metalness: 0.6, roughness: 0.3 });
+      const keysArea = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.02, 0.28), keyMat); keysArea.position.y = 0.02; kbGroup.add(keysArea);
+
+      const rgbMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.2 });
+      const kbRgb = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.01, 0.02), rgbMat); kbRgb.position.set(0, -0.01, 0.15); kbGroup.add(kbRgb);
+
+      const kbHitbox = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
+      kbHitbox.userData = { type: "keyboard" };
+      interactiveObjects.push(kbHitbox);
+      kbGroup.add(kbHitbox);
+      stationGroup.add(kbGroup);
+
+      const mouseGroup = new THREE.Group();
+      mouseGroup.position.set(0.6, 0.875, 0.25);
+
+      const padMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.7 });
+      const mousePad = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.005, 0.4), padMat); mouseGroup.add(mousePad);
+
+      const mouseBodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.8, roughness: 0.2 });
+      const mouseBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.2), mouseBodyMat); mouseBody.position.set(0, 0.03, 0); mouseBody.castShadow = true; mouseGroup.add(mouseBody);
+
+      const mouseScrollMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.0 });
+      const mouseScroll = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.04), mouseScrollMat); mouseScroll.position.set(0, 0.055, -0.04); mouseGroup.add(mouseScroll);
+
+      const mouseHitbox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
+      mouseHitbox.userData = { type: "mouse" };
+      interactiveObjects.push(mouseHitbox);
+      mouseGroup.add(mouseHitbox);
+      stationGroup.add(mouseGroup);
+
+      const chairGroup = new THREE.Group();
+      chairGroup.position.set(0, 0, 1.1); 
+      chairGroup.rotation.y = 0; 
+
+      const chairMetalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.95, roughness: 0.15 });
+      const chairLeatherMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.2 });
+      const chairAccentMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 1.8 });
+
+      const chairBaseCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 16), chairMetalMat);
+      chairBaseCenter.position.y = 0.15; chairGroup.add(chairBaseCenter);
+
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * Math.PI * 2) / 5;
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.45), chairMetalMat);
+        leg.position.set(Math.sin(angle) * 0.22, 0.08, Math.cos(angle) * 0.22);
+        leg.rotation.y = angle; chairGroup.add(leg);
+
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 12), chairMetalMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(Math.sin(angle) * 0.42, 0.04, Math.cos(angle) * 0.42);
+        chairGroup.add(wheel);
+      }
+
+      const piston = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.3, 16), chairMetalMat);
+      piston.position.y = 0.3; chairGroup.add(piston);
+
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, 0.65), chairLeatherMat);
+      seat.position.y = 0.48; seat.castShadow = true; chairGroup.add(seat);
+
+      const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.08), chairLeatherMat);
+      backrest.position.set(0, 0.95, 0.28); backrest.rotation.x = -0.08; backrest.castShadow = true; chairGroup.add(backrest);
+
+      const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 0.08), chairLeatherMat);
+      headrest.position.set(0, 1.45, 0.32); chairGroup.add(headrest);
+
+      const chairLight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.7, 0.02), chairAccentMat);
+      chairLight.position.set(0, 0.95, 0.33); chairGroup.add(chairLight);
+
+      for (let side of [-1, 1]) {
+        const armSupport = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.25, 0.04), chairMetalMat);
+        armSupport.position.set(side * 0.35, 0.6, 0); chairGroup.add(armSupport);
+
+        const armPad = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.35), chairLeatherMat);
+        armPad.position.set(side * 0.35, 0.72, -0.02); chairGroup.add(armPad);
+      }
+
+      const chairHitbox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.5, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
+      chairHitbox.position.y = 0.75;
+      chairHitbox.userData = { type: "chair" };
+      interactiveObjects.push(chairHitbox);
+      chairGroup.add(chairHitbox);
+
+      // --- TEKS CREDIT DEVELOPER DI LANTAI BELAKANG KURSI ---
+      const creditCanvas = document.createElement('canvas');
+      creditCanvas.width = 512;
+      creditCanvas.height = 128;
+      const creditCtx = creditCanvas.getContext('2d');
+      creditCtx.clearRect(0, 0, 512, 128);
+      creditCtx.fillStyle = '#00f2fe';
+      creditCtx.font = 'bold 36px "Orbitron", sans-serif';
+      creditCtx.textAlign = 'center';
+      creditCtx.textBaseline = 'middle';
+      creditCtx.shadowColor = '#00f2fe';
+      creditCtx.shadowBlur = 15;
+      creditCtx.fillText('Developed by CelxTea', 256, 64);
+
+      const creditTex = new THREE.CanvasTexture(creditCanvas);
+      const creditMat = new THREE.MeshStandardMaterial({
+        map: creditTex,
+        transparent: true,
+        emissive: 0x00f2fe,
+        emissiveIntensity: 2.0,
+        roughness: 0.1
+      });
+
+      const creditTextPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), creditMat);
+      creditTextPlane.rotation.x = -Math.PI / 2;
+      creditTextPlane.position.set(0, 0.02, 1.0);
+      chairGroup.add(creditTextPlane);
+
+      stationGroup.add(chairGroup);
+      parent.add(stationGroup);
+    }
+
+    function buildServerRacks(parent) {
+      const serverGroup = new THREE.Group(); serverGroup.position.set(-9.5, 0, -6.5);
+      const serverMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.95, roughness: 0.15, bumpMap: bumpTextureMetal, bumpScale: 0.01 });
+      const ledMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.0 });
+      const alertLedMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 2.5 });
+
+      const cableMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+      for (let c = 0; c < 3; c++) {
+        const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 4.5), cableMat);
+        cable.position.set(-0.75, 2.3, c * 0.1 - 0.1);
+        serverGroup.add(cable);
+      }
+
+      for (let r = 0; r < 2; r++) {
+        const rack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5.0, 1.6), serverMat); rack.position.set(r * 2.2, 2.5, 0); rack.castShadow = true; serverGroup.add(rack);
+        for (let i = 0; i < 8; i++) {
+          const isErr = (r === 0 && i === 3);
+          const ledMatClone = isErr ? alertLedMat.clone() : ledMat.clone();
+          const led = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.05), ledMatClone);
+          led.position.set(r * 2.2, 0.8 + (i * 0.5), 0.81); 
+          serverGroup.add(led);
+          serverLEDs.push({ mesh: led, isErr: isErr });
+        }
+      }
+      parent.add(serverGroup);
+    }
+
+    function buildAnalysisWorkbench(parent) {
+      const benchGroup = new THREE.Group(); benchGroup.position.set(8.5, 0, -6.0);
+      const benchMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.25, bumpMap: bumpTextureMetal, bumpScale: 0.005 });
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.85, 1.8), benchMat); bench.position.y = 0.425; bench.castShadow = bench.receiveShadow = true;
+      benchGroup.add(bench); 
+
+      const holoEmitterMat = new THREE.MeshStandardMaterial({ color: 0x020617, metalness: 0.9, roughness: 0.15 });
+      const emitterRingMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 2.5 });
+
+      const emitterBase = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 0.12, 32), holoEmitterMat);
+      emitterBase.position.set(0, 0.91, 0);
+      emitterBase.castShadow = true;
+      benchGroup.add(emitterBase);
+
+      const emitterRing = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.025, 16, 32), emitterRingMat);
+      emitterRing.rotation.x = Math.PI / 2;
+      emitterRing.position.set(0, 0.97, 0);
+      benchGroup.add(emitterRing);
+
+      const holoPointLight = new THREE.PointLight(0x00f2fe, 2.5, 4);
+      holoPointLight.position.set(0, 1.5, 0);
+      benchGroup.add(holoPointLight);
+
+      const coneMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false });
+      const holoBeam = new THREE.Mesh(new THREE.ConeGeometry(0.65, 1.3, 32, 1, true), coneMat);
+      holoBeam.position.set(0, 1.6, 0);
+      benchGroup.add(holoBeam);
+
+      dnaHologramGroup = new THREE.Group();
+      dnaHologramGroup.position.set(0, 1.65, 0);
+
+      const sphereGeo = new THREE.SphereGeometry(0.035, 12, 12);
+      const cyanMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, emissive: 0x00f2fe, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xffb703, emissive: 0xffb703, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
+      const bondMat = new THREE.MeshBasicMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.65 });
+
+      const numPairs = 18;
+      const dnaHeight = 1.1;
+      const radius = 0.22;
+      const turns = 2.0;
+
+      for (let i = 0; i < numPairs; i++) {
+        const progress = i / (numPairs - 1);
+        const y = (progress - 0.5) * dnaHeight;
+        const angle = progress * Math.PI * 2 * turns;
+
+        const x1 = Math.cos(angle) * radius;
+        const z1 = Math.sin(angle) * radius;
+        const x2 = Math.cos(angle + Math.PI) * radius;
+        const z2 = Math.sin(angle + Math.PI) * radius;
+
+        const nodeA = new THREE.Mesh(sphereGeo, cyanMat);
+        nodeA.position.set(x1, y, z1);
+        dnaHologramGroup.add(nodeA);
+
+        const nodeB = new THREE.Mesh(sphereGeo, goldMat);
+        nodeB.position.set(x2, y, z2);
+        dnaHologramGroup.add(nodeB);
+
+        const dist = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2);
+        const bondGeo = new THREE.CylinderGeometry(0.008, 0.008, dist, 8);
+        const bond = new THREE.Mesh(bondGeo, bondMat);
+        bond.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
+        bond.rotation.z = Math.PI / 2;
+        bond.rotation.y = -angle;
+        dnaHologramGroup.add(bond);
+      }
+
+      benchGroup.add(dnaHologramGroup);
+
+      const dnaHitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.8, 16), new THREE.MeshBasicMaterial({ visible: false }));
+      dnaHitbox.position.set(0, 1.5, 0);
+      dnaHitbox.userData = { type: "dna_hologram" };
+      interactiveObjects.push(dnaHitbox);
+      benchGroup.add(dnaHitbox);
+
+      parent.add(benchGroup);
+    }
+
+    function buildPod(parent, data) {
+      const podGroup = new THREE.Group(); podGroup.position.set(data.pos.x, data.pos.y, data.pos.z);
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.95, roughness: 0.15, bumpMap: bumpTextureMetal, bumpScale: 0.01 });
+
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.65, 0.2, 24), baseMat); base.position.y = 0.1; base.castShadow = true; podGroup.add(base);
+      const topCap = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.15, 24), baseMat); topCap.position.y = 1.6; topCap.castShadow = true; podGroup.add(topCap);
+
+      const glassMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.3,
+        transmission: 0.95,
+        roughness: 0.02,
+        metalness: 0.05,
+        ior: 1.5,
+        reflectivity: 0.95
+      });
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.3, 24), glassMat); glass.position.y = 0.85; podGroup.add(glass);
+
+      if (data.filled) {
+        const coreMat = new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: data.isFailed ? 3.0 : 2.0, roughness: 0.2 });
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 16), coreMat); core.position.y = 0.85; podGroup.add(core);
+
+        const podLight = new THREE.PointLight(data.color, 2.0, 4); podLight.position.y = 0.85; podGroup.add(podLight);
+      }
+
+      const hitBox = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.7, 16), new THREE.MeshBasicMaterial({ visible: false }));
+      hitBox.position.y = 0.85; hitBox.userData = { type: "pod", data: data }; podGroup.add(hitBox);
+
+      interactiveObjects.push(hitBox); parent.add(podGroup);
+    }
+
+    function setupExplosionParticles() {
+      const pCount = 120;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(pCount * 3);
+      const velocities = [];
+
+      for (let i = 0; i < pCount; i++) {
+        positions[i * 3] = -0.7; positions[i * 3 + 1] = 1.85; positions[i * 3 + 2] = -2.0;
+        velocities.push((Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.18, (Math.random() - 0.5) * 0.18);
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const pMat = new THREE.PointsMaterial({ color: 0xef4444, size: 0.12, transparent: true, opacity: 0 });
+
+      explosionParticles = new THREE.Points(geometry, pMat);
+      explosionParticles.userData = { velocities: velocities, count: pCount };
+      scene.add(explosionParticles);
+    }
+
+    function triggerExplosion() {
+      isExploding = true;
+      isEmergencyFlashing = true;
+      explosionParticles.material.opacity = 1.0;
+
+      const posAttr = explosionParticles.geometry.attributes.position;
+      for (let i = 0; i < explosionParticles.userData.count; i++) { posAttr.setXYZ(i, -0.7, 1.85, -2.0); }
+      posAttr.needsUpdate = true;
+
+      playAlarmSound();
+
+      gsap.to(explosionLight, { intensity: 8.0, duration: 0.1, yoyo: true, repeat: 3 });
+      gsap.to(camera.position, { x: camera.position.x + 0.15, y: camera.position.y + 0.15, duration: 0.05, yoyo: true, repeat: 5 });
+
+      let flashCount = 0;
+      const originalColors = roomLights.map(l => l.color.getHex());
+
+      const flashInterval = setInterval(() => {
+        flashCount++;
+        roomLights.forEach(light => {
+          light.color.setHex(flashCount % 2 === 0 ? 0xef4444 : 0x020617);
+          light.intensity = flashCount % 2 === 0 ? 2.5 : 0.2;
+        });
+        if (flashCount >= 10) {
+          clearInterval(flashInterval);
+          roomLights.forEach((light, i) => {
+            light.color.setHex(originalColors[i]);
+            light.intensity = isLightOn ? 1.6 : 0;
+          });
+          isEmergencyFlashing = false;
+        }
+      }, 250);
+
+      setTimeout(() => {
+        gsap.to(explosionParticles.material, { opacity: 0, duration: 0.8 });
+        isExploding = false;
+      }, 600);
+    }
+
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      const hint = document.getElementById('cursor-hint');
+      hint.style.left = `${event.clientX}px`; hint.style.top = `${event.clientY}px`;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(interactiveObjects);
+
+      if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if (hoveredObj !== obj) {
+          hoveredObj = obj; hint.style.opacity = '1';
+          const type = obj.userData.type;
+          if (type === "pod") {
+            hint.textContent = obj.userData.data.isFailed ? `WARNING [${obj.userData.data.name}]` : `INSPECT [${obj.userData.data.name}]`;
+          } else if (type === "pendant_light") {
+            hint.textContent = `TOGGLE LIGHT #${obj.userData.index + 1}`;
+          } else if (type === "light_switch") {
+            hint.textContent = `MASTER POWER SWITCH`;
+          } else if (type === "whiteboard") {
+            hint.textContent = `INSPECT FORMULAS`;
+          } else if (type === "ac_unit") {
+            hint.textContent = `HVAC CLIMATE CONTROL`;
+          } else if (type === "fire_extinguisher") {
+            hint.textContent = `CHECK FIRE EXTINGUISHER`;
+          } else if (type === "exit_door") {
+            hint.textContent = `EXIT`;
+          } else if (type === "keyboard") {
+            hint.textContent = `MECHANICAL KEYBOARD`;
+          } else if (type === "mouse") {
+            hint.textContent = `PRECISION OPTICAL MOUSE`;
+          } else if (type === "chair") {
+            hint.textContent = `RESEARCH LAB CHAIR`;
+          } else if (type === "workstation_desk") {
+            hint.textContent = `OPEN MAINFRAME WORKSTATION`;
+          } else if (type === "dna_hologram") {
+            hint.textContent = `INSPECT DNA HOLOGRAM`;
+          }
+          document.body.style.cursor = 'pointer';
+        }
+      } else {
+        hoveredObj = null; hint.style.opacity = '0'; document.body.style.cursor = 'default';
+      }
+    }
+
+    function onClick() {
+      if (!hoveredObj || isModalOpen || isClickBlocked) return;
+
+      const type = hoveredObj.userData.type;
+
+      if (type === "light_switch") {
+        toggleRoomLighting();
+      } else if (type === "exit_door") {
+        playClickSound();
+        window.open('https://celxtea.vercel.app', '_blank');
+      } else if (type === "pendant_light") {
+        playClickSound();
+        const idx = hoveredObj.userData.index;
+        const pLight = pendantLights[idx];
+        pLight.isOn = !pLight.isOn;
+
+        gsap.to(pLight.light, { intensity: pLight.isOn ? 1.8 : 0, duration: 0.4 });
+        pLight.bulb.material.emissiveIntensity = pLight.isOn ? 2.0 : 0;
+
+        if (volumetricCones[idx]) {
+          gsap.to(volumetricCones[idx].material, { opacity: pLight.isOn ? 0.055 : 0, duration: 0.4 });
+        }
+
+      } else if (type === "pod") {
+        const data = hoveredObj.userData.data;
+        if (data.isFailed) triggerExplosion();
+
+        controls.enabled = false;
+        gsap.to(camera.position, { x: data.pos.x, y: data.pos.y + 0.8, z: data.pos.z + 2.5, duration: 1.4, ease: "power3.inOut" });
+        gsap.to(controls.target, { x: data.pos.x, y: data.pos.y + 0.8, z: data.pos.z, duration: 1.4, ease: "power3.inOut", onComplete: () => {
+          showModal(data);
+        }});
+
+      } else if (type === "workstation_desk") {
+        playClickSound();
+        controls.enabled = false;
+        gsap.to(camera.position, { x: 5.2, y: 1.6, z: 2.2, duration: 1.4, ease: "power3.inOut" });
+        gsap.to(controls.target, { x: 6.5, y: 1.2, z: 3.5, duration: 1.4, ease: "power3.inOut", onComplete: () => {
+          showModal({
+            name: "CelestiaOS Mainframe Workstation",
+            desc: "Central laboratory control system. Manage telemetry diagnostics, specimen pods, and room illumination.",
+            tag: "MAINFRAME OS",
+            isInfo: true,
+            hasTerminal: true,
+            hasControlPanel: true
+          });
+        }});
+
+      } else if (type === "whiteboard") {
+        controls.enabled = false;
+        gsap.to(camera.position, { x: 7.5, y: 3.5, z: 0, duration: 1.4, ease: "power3.inOut" });
+        gsap.to(controls.target, { x: 11.75, y: 3.5, z: 0, duration: 1.4, ease: "power3.inOut", onComplete: () => {
+          showModal({ name: "Theoretical Physics Board", desc: "Contains fundamental Maxwell field equations, Schrödinger wave mechanics, and Einstein's field tensor formulation for relativistic energy calculation.", tag: "PHYSICS", isInfo: true });
+        }});
+
+      } else if (type === "ac_unit") {
+        playClickSound();
+        showModal({ name: "HVAC Environmental Control", desc: `Status: OPERATIONAL. Temperature set to ${currentChamberTemp.toFixed(1)}°C. HEPA Air Filtration: Active (99.97% Efficiency). Chamber Pressure: Nominal.`, tag: "ENVIRONMENT", isInfo: true });
+
+      } else if (type === "fire_extinguisher") {
+        playClickSound();
+        showModal({ name: "CO2 Fire Extinguisher", desc: "Last Inspection: OK. Pressure Gauge: Nominal (135 Bar). Certified for Class B & Class C electrical fire hazard suppression.", tag: "SAFETY", isInfo: true });
+
+      } else if (type === "keyboard") {
+        playClickSound();
+        showModal({ name: "Quantum-Link Mechanical Keyboard", desc: "Custom mechanical keyboard with optical linear switches and per-key RGB backlight linked to quantum simulation terminal.", tag: "HARDWARE", isInfo: true });
+
+      } else if (type === "mouse") {
+        playClickSound();
+        showModal({ name: "Precision Ergonomic Mouse", desc: "High-DPI laser tracking mouse with programmable side macro keys for quick mainframe command navigation.", tag: "HARDWARE", isInfo: true });
+
+      } else if (type === "chair") {
+        playClickSound();
+        showModal({ name: "Ergonomic Researcher Chair", desc: "Heavy-duty ergonomic chair equipped with lumbar support and ambient LED accent strips for extended quantum research sessions.", tag: "FURNITURE", isInfo: true });
+
+      } else if (type === "dna_hologram") {
+        playClickSound();
+        controls.enabled = false;
+        gsap.to(camera.position, { x: 8.5, y: 1.8, z: -4.2, duration: 1.4, ease: "power3.inOut" });
+        gsap.to(controls.target, { x: 8.5, y: 1.65, z: -6.0, duration: 1.4, ease: "power3.inOut", onComplete: () => {
+          showModal({ 
+            name: "Quantum DNA Holographic Projection", 
+            desc: "Real-time 3D double-helix simulation mapping genetic sequencing data. Features interactive light diffraction and dynamic base pair stability tracking.", 
+            tag: "BIOTECH HOLOGRAM", 
+            isInfo: true 
+          });
+        }});
+      }
+    }
+
+    function resetOverview() {
+      isClickBlocked = true;
+      setTimeout(() => { isClickBlocked = false; }, 400);
+
+      document.getElementById('project-modal').classList.remove('active');
+      document.getElementById('m-terminal').style.display = "none";
+      document.getElementById('os-control-wrapper').style.display = "none";
+      document.getElementById('m-link-container').innerHTML = '';
+      isModalOpen = false;
+
+      if (isFirstPerson) exitFirstPerson();
+
+      gsap.to(camera.position, { x: DEFAULT_CAM_POS.x, y: DEFAULT_CAM_POS.y, z: DEFAULT_CAM_POS.z, duration: 1.4, ease: "power3.inOut" });
+      gsap.to(controls.target, { x: DEFAULT_TARGET_POS.x, y: DEFAULT_TARGET_POS.y, z: DEFAULT_TARGET_POS.z, duration: 1.4, ease: "power3.inOut", onComplete: () => { controls.enabled = true; } });
+    }
+
+    // Mini-Game / Terminal Interaktif Berfungsi
+    function setupInteractiveTerminal() {
+      puzzleActive = false;
+      const terminalEl = document.getElementById('m-terminal');
+      terminalEl.innerHTML = `
+        <div id="terminal-history">
+          <div class="terminal-line"><span class="terminal-timestamp">[0.001s]</span> CelestiaOS KERNEL INITIALIZED... OK</div>
+          <div class="terminal-line"><span class="terminal-timestamp">[0.015s]</span> CONNECTING TO CELESTIA LAB... ACTIVE</div>
+          <div class="terminal-line"><span class="terminal-timestamp">[0.042s]</span> ROOM ILLUMINATION SUBSYSTEM: SYNCHRONIZED</div>
+          <div class="terminal-line" style="color: var(--accent-green);"><span class="terminal-timestamp">[0.098s]</span> ALL SYSTEMS READY. TYPE 'help' FOR COMMANDS.</div>
+        </div>
+        <div class="terminal-input-row">
+          <span class="terminal-prompt">celestia@lab:~$</span>
+          <input type="text" id="terminal-cli-input" class="terminal-input" placeholder="Enter command..." autocomplete="off" spellcheck="false" />
+        </div>
+      `;
+
+      const cliInput = document.getElementById('terminal-cli-input');
+      const historyEl = document.getElementById('terminal-history');
+
+      cliInput.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Enter') {
+          const rawCmd = cliInput.value.trim();
+          const cmd = rawCmd.toLowerCase();
+          cliInput.value = '';
+          if (!cmd) return;
+
+          playClickSound();
+
+          const userCmdLine = document.createElement('div');
+          userCmdLine.className = 'terminal-line';
+          userCmdLine.innerHTML = `<span class="terminal-prompt">celestia@lab:~$</span> <span>${rawCmd}</span>`;
+          historyEl.appendChild(userCmdLine);
+
+          if (puzzleActive) {
+            handlePuzzleInput(cmd, historyEl, terminalEl);
+            return;
+          }
+
+          let responseText = '';
+          let responseColor = 'var(--accent-cyan)';
+
+          if (cmd === 'help') {
+            responseText = `AVAILABLE COMMANDS:<br>
+            - <b>status</b> : Display current system telemetries<br>
+            - <b>scan_dna</b> : Run quantum sequence scan on DNA hologram<br>
+            - <b>decontaminate</b> : Initiate bio-hazard air purification<br>
+            - <b>set_temp &lt;val&gt;</b> : Adjust chamber HVAC temperature (°C)<br>
+            - <b>repair_specimen</b> : Launch multi-phase diagnostic bypass puzzle for Specimen #04<br>
+            - <b>lights</b> : Toggle laboratory lighting<br>
+            - <b>override</b> : Trigger containment override protocol<br>
+            - <b>clear</b> : Clear terminal output console<br>
+            - <b>exit</b> : Close workstation terminal`;
+          } else if (cmd === 'status') {
+            const spec4Status = podData[3].isFailed ? "CRITICAL BREACH WARNING" : "STABLE / REPAIRED";
+            responseText = `SYSTEM TELEMETRY:<br>
+            * Chamber Temp: ${currentChamberTemp.toFixed(1)}°C | HEPA Filtration: 99.97%<br>
+            * Main Lighting: ${isLightOn ? 'ACTIVE' : 'OFF'}<br>
+            * Containment Field: STABLE (Pods 01-03, 05-08)<br>
+            * Specimen #04 Status: ${spec4Status}`;
+            responseColor = 'var(--accent-gold)';
+          } else if (cmd === 'scan_dna') {
+            responseText = `[DNA SCANNER] Sequenced 3.2B base pairs.<br>
+            Double-helix stability: 99.4%. Hydrophobic core intact.`;
+            responseColor = 'var(--accent-cyan)';
+          } else if (cmd === 'decontaminate') {
+            responseText = `[CLEANROOM] Decontamination protocol initiated.<br>
+            Air purging complete. Nitrogen levels restored to safe thresholds.`;
+            responseColor = 'var(--accent-green)';
+          } else if (cmd.startsWith('set_temp')) {
+            const parts = cmd.split(' ');
+            if (parts.length > 1 && !isNaN(parts[1])) {
+              const val = parseFloat(parts[1]);
+              if (val >= -270 && val <= 100) {
+                currentChamberTemp = val;
+                responseText = `[HVAC] Chamber temperature recalibrated to ${currentChamberTemp.toFixed(1)}°C.`;
+                responseColor = 'var(--accent-green)';
+              } else {
+                responseText = `[HVAC ERROR] Temperature value out of operating bounds (-270°C to 100°C).`;
+                responseColor = 'var(--accent-red)';
+              }
+            } else {
+              responseText = `Usage: set_temp <value> (e.g., set_temp 18.5)`;
+              responseColor = 'var(--accent-gold)';
+            }
+          } else if (cmd === 'repair_specimen' || cmd === 'repair' || cmd === 'repair_pod') {
+            if (!podData[3].isFailed) {
+              responseText = `[SYSTEM] Specimen #04 is already fully operational and stabilized.`;
+              responseColor = 'var(--accent-green)';
+            } else {
+              startPuzzleGame(historyEl);
+              terminalEl.scrollTop = terminalEl.scrollHeight;
+              return;
+            }
+          } else if (cmd === 'lights') {
+            toggleRoomLighting();
+            responseText = `Lighting system toggled to: ${isLightOn ? 'ON' : 'OFF'}`;
+            responseColor = 'var(--accent-green)';
+          } else if (cmd === 'override') {
+            triggerExplosion();
+            responseText = `[CRITICAL WARNING] CONTAINMENT OVERRIDE ACTIVATED! EMERGENCY FLUSH INITIATED!`;
+            responseColor = 'var(--accent-red)';
+          } else if (cmd === 'clear') {
+            historyEl.innerHTML = '';
+            terminalEl.scrollTop = terminalEl.scrollHeight;
+            return;
+          } else if (cmd === 'exit') {
+            resetOverview();
+            return;
+          } else {
+            responseText = `Command not recognized: '${cmd}'. Type 'help' for available commands.`;
+            responseColor = 'var(--accent-red)';
+          }
+
+          const responseLine = document.createElement('div');
+          responseLine.className = 'terminal-line';
+          responseLine.style.color = responseColor;
+          responseLine.style.marginTop = '4px';
+          responseLine.style.marginBottom = '8px';
+          responseLine.innerHTML = responseText;
+          historyEl.appendChild(responseLine);
+
+          terminalEl.scrollTop = terminalEl.scrollHeight;
+        }
+      });
+    }
+
+    function startPuzzleGame(historyEl) {
+      puzzleActive = true;
+      puzzleStage = 1;
+      puzzleTargetFreq = Math.floor(Math.random() * 50) + 400; 
+
+      const line = document.createElement('div');
+      line.className = 'terminal-line';
+      line.style.color = 'var(--accent-gold)';
+      line.style.marginTop = '6px';
+      line.innerHTML = `====================================================<br>
+      [CRITICAL PROTOCOL] MULTI-PHASE SPECIMEN #04 OVERRIDE<br>
+      ====================================================<br>
+      <b>[PHASE 1/3: FREQUENCY CALIBRATION]</b><br>
+      Harmonic resonance out of sync! Clue: <i>Target frequency is between 400 Hz and 450 Hz.</i><br>
+      Enter frequency (e.g., <b>420</b>):`;
+      historyEl.appendChild(line);
+    }
+
+    function handlePuzzleInput(cmd, historyEl, terminalEl) {
+      const line = document.createElement('div');
+      line.className = 'terminal-line';
+
+      if (puzzleStage === 1) {
+        const freq = parseInt(cmd);
+        if (isNaN(freq)) {
+          line.style.color = 'var(--accent-red)';
+          line.innerHTML = `[ERROR] Invalid frequency format. Enter a numerical value (400 - 450):`;
+          historyEl.appendChild(line);
+        } else if (freq < puzzleTargetFreq) {
+          line.style.color = 'var(--accent-gold)';
+          line.innerHTML = `[RESONANCE TOO LOW] Resonance at ${freq} Hz. Adjust HIGHER!`;
+          historyEl.appendChild(line);
+        } else if (freq > puzzleTargetFreq) {
+          line.style.color = 'var(--accent-gold)';
+          line.innerHTML = `[RESONANCE TOO HIGH] Resonance at ${freq} Hz. Adjust LOWER!`;
+          historyEl.appendChild(line);
+        } else {
+          puzzleStage = 2;
+          puzzleSeqIndex = 0;
+          const options = ['alpha', 'beta', 'gamma', 'delta'];
+          puzzleSequence = [
+            options[Math.floor(Math.random() * options.length)],
+            options[Math.floor(Math.random() * options.length)],
+            options[Math.floor(Math.random() * options.length)],
+            options[Math.floor(Math.random() * options.length)]
+          ];
+          line.style.color = 'var(--accent-green)';
+          line.innerHTML = `[PHASE 1 CLEARED] Frequency locked at ${puzzleTargetFreq} Hz!<br><br>
+          <b>[PHASE 2/3: QUANTUM SEQUENCE ALIGNMENT]</b><br>
+          Stabilize 4 pressure valves in order.<br>
+          Required Sequence: <b>${puzzleSequence.join(' -> ')}</b><br>
+          Enter valve 1 of 4 (alpha, beta, gamma, delta):`;
+          historyEl.appendChild(line);
+        }
+      } else if (puzzleStage === 2) {
+        const validNodes = ['alpha', 'beta', 'gamma', 'delta'];
+        if (!validNodes.includes(cmd)) {
+          line.style.color = 'var(--accent-red)';
+          line.innerHTML = `[ERROR] Invalid valve node! Use: alpha, beta, gamma, delta. Target: ${puzzleSequence[puzzleSeqIndex]}`;
+          historyEl.appendChild(line);
+        } else if (cmd === puzzleSequence[puzzleSeqIndex]) {
+          puzzleSeqIndex++;
+          if (puzzleSeqIndex >= puzzleSequence.length) {
+            puzzleStage = 3;
+            const a = Math.floor(Math.random() * 8) + 2;
+            const b = Math.floor(Math.random() * 8) + 2;
+            puzzlePasscode = a * b;
+            line.style.color = 'var(--accent-green)';
+            line.innerHTML = `[PHASE 2 CLEARED] All pressure valves stabilized!<br><br>
+            <b>[PHASE 3/3: SECURITY MATRIX OVERRIDE]</b><br>
+            Solve quantum parity check to unlock core containment:<br>
+            <i>EVALUATE: ${a} × ${b} = ?</i><br>
+            Enter security passcode:`;
+            historyEl.appendChild(line);
+          } else {
+            line.style.color = 'var(--accent-cyan)';
+            line.innerHTML = `[VALVE ${puzzleSeqIndex}/4 OK] Enter next valve node:`;
+            historyEl.appendChild(line);
+          }
+        } else {
+          line.style.color = 'var(--accent-red)';
+          line.innerHTML = `[SEQUENCE BREACH] Wrong valve engaged! Sequence reset. Enter valve 1 (${puzzleSequence[0]}):`;
+          puzzleSeqIndex = 0;
+          historyEl.appendChild(line);
+        }
+      } else if (puzzleStage === 3) {
+        const code = parseInt(cmd);
+        if (code === puzzlePasscode) {
+          puzzleActive = false;
+          podData[3].isFailed = false;
+          podData[3].name = "Specimen D: Stabilized Plasma";
+          podData[3].color = 0x10b981;
+          
+          line.style.color = 'var(--accent-green)';
+          line.innerHTML = `[SUCCESS] SPECIMEN #04 CONTAINMENT FIELD FULLY REPAIRED & RE-STABILIZED!`;
+          historyEl.appendChild(line);
+        } else {
+          line.style.color = 'var(--accent-red)';
+          line.innerHTML = `[INCORRECT PASSCODE] Recalculate parity check and re-enter code:`;
+          historyEl.appendChild(line);
+        }
+      }
+      terminalEl.scrollTop = terminalEl.scrollHeight;
+    }
+
+    function showModal(data) {
+      isModalOpen = true;
+      const modal = document.getElementById('project-modal');
+      const tag = document.getElementById('m-tag');
+      const title = document.getElementById('m-title');
+      const desc = document.getElementById('m-desc');
+      const linkContainer = document.getElementById('m-link-container');
+      const osWrapper = document.getElementById('os-control-wrapper');
+      const terminal = document.getElementById('m-terminal');
+
+      tag.textContent = data.tag || (data.filled ? "CONTAINMENT POD" : "EMPTY POD");
+      tag.className = "project-tag" + (data.isFailed ? " danger" : (data.isInfo ? " info" : ""));
+      title.textContent = data.name;
+      desc.textContent = data.desc;
+
+      linkContainer.innerHTML = '';
+      if (data.url) {
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.target = '_blank';
+        link.className = 'modal-link-btn';
+        link.innerHTML = 'OPEN EXPERIMENT PORTAL <i class="fa-solid fa-arrow-up-right-from-square"></i>';
+        linkContainer.appendChild(link);
+      }
+
+      if (data.hasControlPanel) {
+        osWrapper.style.display = "block";
+      } else {
+        osWrapper.style.display = "none";
+      }
+
+      if (data.hasTerminal) {
+        terminal.style.display = "block";
+        setupInteractiveTerminal();
+      } else {
+        terminal.style.display = "none";
+      }
+
+      modal.classList.add('active');
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      // Perbarui posisi WASD
+      updateMovement(delta);
+
+      if (!isFirstPerson && controls && controls.enabled) {
+        controls.update();
+      }
+
+      // Animasi Pipa Aliran Liquid
+      flowPipes.forEach((pipe, idx) => {
+        if (pipe.material) {
+          pipe.material.emissiveIntensity = 1.5 + Math.sin(time * 3 + idx) * 0.8;
+        }
+      });
+
+      // Animasi Putaran DNA Hologram
+      if (dnaHologramGroup) {
+        dnaHologramGroup.rotation.y = time * 0.8;
+      }
+
+      // Animasi Partikel Debu Cahaya
+      if (lightDustGroup) {
+        const dustPoints = lightDustGroup.children.find(c => c.isPoints);
+        if (dustPoints && dustPoints.userData.dustData) {
+          const pos = dustPoints.geometry.attributes.position;
+          const data = dustPoints.userData.dustData;
+          for (let i = 0; i < data.length; i++) {
+            const d = data[i];
+            d.baseY += d.speedY;
+            if (d.baseY > 5.2) d.baseY = 1.0;
+            const currentY = d.baseY;
+            const currentAngle = d.angle + Math.sin(time * d.swaySpeed) * d.swayAmp;
+            
+            const px = d.centerX + Math.cos(currentAngle) * d.radius;
+            const pz = d.centerZ + Math.sin(currentAngle) * d.radius;
+            pos.setXYZ(i, px, currentY, pz);
+          }
+          pos.needsUpdate = true;
+        }
+      }
+
+      // Animasi Kerlip Lampu LED Server Racks
+      serverLEDs.forEach((item, idx) => {
+        if (!item.isErr && item.mesh.material) {
+          item.mesh.material.emissiveIntensity = 1.2 + Math.sin(time * 5 + idx) * 0.8;
+        }
+      });
+
+      // Sinkronisasi Volume Suara Ambient
+      updateAmbientVolume();
+
+      // Render Scene
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+
+      if (!LoadingManager.isFirstFrameRendered) {
+        LoadingManager.isFirstFrameRendered = true;
+        LoadingManager.complete();
+      }
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

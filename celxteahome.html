@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CelxTea Home</title>
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Orbitron:wght@500;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Three.js + Controls + GSAP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+  <!-- Post-Processing Addons -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #07080c;
+      --accent-gold: #c5a059;
+      --accent-warm: #d97706;
+      --text-light: #f1f5f9;
+      --glass-dark: rgba(13, 15, 22, 0.92);
+      --glass-border: rgba(197, 160, 89, 0.4);
+      --font-main: 'Plus Jakarta Sans', sans-serif;
+      --font-gamify: 'Orbitron', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100vh; overflow: hidden; background: var(--bg-dark); font-family: var(--font-main); color: var(--text-light); touch-action: none; }
+
+    #webgl-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+
+    /* LOADING SCREEN */
+    #loading-screen {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #08090d; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+    #loading-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .loading-box {
+      width: 90%; max-width: 480px; padding: 35px 30px; background: rgba(18, 20, 28, 0.95);
+      border: 1px solid var(--accent-gold); border-radius: 12px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8); text-align: center;
+    }
+
+    .loading-title { font-family: var(--font-gamify); font-weight: 700; font-size: 1.1rem; color: var(--accent-gold); letter-spacing: 2px; margin-bottom: 20px; }
+    .loading-bar-container { width: 100%; height: 8px; background: #1a1d26; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+    .loading-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-warm)); transition: width 0.2s ease-out; }
+    .loading-status-row { display: flex; justify-content: space-between; font-family: var(--font-code); font-size: 0.8rem; color: #94a3b8; }
+
+    /* HUD CONTROLS */
+    .camera-hud-controls { position: fixed; top: 20px; right: 20px; z-index: 50; display: flex; gap: 10px; }
+    .hud-btn {
+      background: var(--glass-dark); border: 1px solid var(--glass-border); color: var(--text-light);
+      font-family: var(--font-code); font-size: 0.8rem; font-weight: 600; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(12px);
+      display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    .hud-btn:hover { background: #1c202b; transform: translateY(-2px); border-color: var(--accent-gold); }
+
+    /* UI MODAL */
+    .project-modal {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -45%) scale(0.95);
+      width: 90%; max-width: 580px; background: var(--glass-dark); backdrop-filter: blur(25px);
+      border: 1px solid var(--accent-gold); border-radius: 16px; padding: 0;
+      z-index: 100; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.8); overflow: hidden;
+    }
+    .project-modal.active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+
+    .win-titlebar {
+      background: #12151c; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font-code); font-size: 0.8rem; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .close-btn {
+      background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; width: 24px; height: 24px;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+    }
+    .close-btn:hover { background: #ef4444; }
+
+    .modal-body-content { padding: 24px; }
+    .project-tag { font-family: var(--font-code); font-size: 0.7rem; color: #f59e0b; background: rgba(217, 119, 6, 0.15); padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(217, 119, 6, 0.3); }
+    .modal-title { font-size: 1.4rem; font-weight: 700; margin: 10px 0 8px 0; color: #f8fafc; }
+    .modal-desc { font-size: 0.88rem; color: #cbd5e1; line-height: 1.6; font-family: var(--font-main); }
+
+    .action-btn-portal {
+      margin-top: 18px; width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #fff; border: none; border-radius: 8px; font-family: var(--font-code); font-weight: 700;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .action-btn-portal:hover { background: linear-gradient(135deg, #0369a1, #075985); transform: translateY(-2px); }
+
+    /* TERMINAL */
+    .terminal-console {
+      margin-top: 15px; background: #06080a; border: 1px solid var(--accent-gold);
+      border-radius: 8px; padding: 12px; font-family: var(--font-code); font-size: 0.75rem;
+      color: #38bdf8; max-height: 200px; overflow-y: auto;
+    }
+    .terminal-line { margin-bottom: 4px; }
+    .terminal-prompt { color: #4ade80; font-weight: bold; }
+    .terminal-input-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .terminal-input { background: transparent; border: none; outline: none; color: #fff; font-family: var(--font-code); font-size: 0.75rem; flex: 1; }
+
+    /* MUSIC PLAYER UI */
+    .music-player-container {
+      margin-top: 15px; background: #090d16; border: 1px solid var(--accent-gold);
+      border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+      font-family: var(--font-code); font-size: 0.8rem; color: var(--text-light); gap: 10px;
+    }
+    .music-info { display: flex; align-items: center; gap: 10px; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .music-controls { display: flex; gap: 8px; align-items: center; }
+    .music-btn {
+      background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--text-light);
+      border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease;
+      display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+    }
+    .music-btn:hover { background: var(--accent-gold); color: #000; border-color: var(--accent-gold); }
+
+    /* HOVER LABEL */
+    .cursor-label {
+      position: fixed; pointer-events: none; z-index: 120; font-family: var(--font-code); font-size: 0.75rem;
+      font-weight: 600; color: #f8fafc; background: var(--glass-dark); padding: 6px 12px;
+      border-radius: 6px; border: 1px solid var(--accent-gold); opacity: 0; transition: opacity 0.2s ease;
+      transform: translate(15px, 15px); box-shadow: 0 4px 15px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOADING SCREEN -->
+  <div id="loading-screen">
+    <div class="loading-box">
+      <div class="loading-title">CELXTEA HOME</div>
+      <div class="loading-bar-container">
+        <div id="loading-bar" class="loading-bar"></div>
+      </div>
+      <div class="loading-status-row">
+        <span id="loading-text">GENERATING UNDERGROUND LAB ACCESS & DIFFUSE LIGHTS...</span>
+        <span id="loading-percentage">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="webgl-canvas"></canvas>
+  <div id="cursor-hint" class="cursor-label">INTERACT</div>
+
+  <!-- HUD -->
+  <div class="camera-hud-controls">
+    <button class="hud-btn" id="btn-first-person"><i class="fa-solid fa-person"></i> First Person</button>
+    <button class="hud-btn" onclick="resetOverview()"><i class="fa-solid fa-rotate-right"></i> Reset View</button>
+  </div>
+
+  <!-- MODAL UI -->
+  <div id="project-modal" class="project-modal">
+    <div class="win-titlebar">
+      <span><i class="fa-solid fa-house-laptop"></i> Home Control System</span>
+      <button class="close-btn" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body-content">
+      <span id="m-tag" class="project-tag">ROOM OBJECT</span>
+      <h2 id="m-title" class="modal-title">Object Title</h2>
+      <p id="m-desc" class="modal-desc">Description...</p>
+
+      <!-- MUSIC PLAYER UI FOR WORKSTATION PC -->
+      <div id="m-music-player" class="music-player-container" style="display: none;">
+        <div class="music-info">
+          <i class="fa-solid fa-music"></i>
+          <span id="music-title-display">No Track Loaded</span>
+        </div>
+        <div class="music-controls">
+          <button class="music-btn" title="Previous Track" onclick="playPrevTrack()"><i class="fa-solid fa-backward-step"></i></button>
+          <button class="music-btn" title="Play / Pause" onclick="togglePlayMusic()"><i class="fa-solid fa-play" id="music-play-icon"></i></button>
+          <button class="music-btn" title="Next Track" onclick="playNextTrack()"><i class="fa-solid fa-forward-step"></i></button>
+        </div>
+      </div>
+
+      <div id="portal-wrapper" style="display: none;">
+        <button class="action-btn-portal" onclick="navigateToLab()">
+          <i class="fa-solid fa-stairs"></i> DESCEND TO CELESTIA LAB
+        </button>
+      </div>
+
+      <div id="m-terminal" class="terminal-console" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    const LoadingManager = {
+      progress: 0,
+      updateProgress(target, text) {
+        if (this.progress < target) {
+          this.progress = target;
+          document.getElementById('loading-bar').style.width = `${Math.min(this.progress, 100)}%`;
+          document.getElementById('loading-percentage').textContent = `${Math.round(Math.min(this.progress, 100))}%`;
+          if (text) document.getElementById('loading-text').textContent = text;
+        }
+      },
+      complete() {
+        this.updateProgress(100, "DIFFUSE ATMOSPHERE & PASSAGES READY");
+        setTimeout(() => { document.getElementById('loading-screen').classList.add('hidden'); }, 400);
+      }
+    };
+
+    // --- MUSIC PLAYER PLAYLIST & STATE ---
+    // Masukkan file lokal .webm kamu di dalam array ini secara manual
+    const LOCAL_PLAYLIST = [
+      { title: "Track 1 - Amaoto", src: "./Amaoto.webm" }
+    ];
+
+    let currentTrackIndex = 0;
+    let audioElement = new Audio();
+    let isMusicPlaying = false;
+
+    function updateMusicIndicator() {
+      const display = document.getElementById('music-title-display');
+      const icon = document.getElementById('music-play-icon');
+      if (LOCAL_PLAYLIST.length > 0) {
+        const track = LOCAL_PLAYLIST[currentTrackIndex];
+        display.textContent = `${track.title} [${currentTrackIndex + 1}/${LOCAL_PLAYLIST.length}]`;
+      } else {
+        display.textContent = "No WebM Tracks Added";
+      }
+      if (icon) {
+        icon.className = isMusicPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
+      }
+    }
+
+    function loadTrack(index) {
+      if (LOCAL_PLAYLIST.length === 0) return;
+      currentTrackIndex = (index + LOCAL_PLAYLIST.length) % LOCAL_PLAYLIST.length;
+      audioElement.src = LOCAL_PLAYLIST[currentTrackIndex].src;
+      updateMusicIndicator();
+      if (isMusicPlaying) {
+        audioElement.play().catch(e => console.log("Audio play error:", e));
+      }
+    }
+
+    function togglePlayMusic() {
+      if (LOCAL_PLAYLIST.length === 0) return;
+      if (!audioElement.src) {
+        audioElement.src = LOCAL_PLAYLIST[currentTrackIndex].src;
+      }
+      if (isMusicPlaying) {
+        audioElement.pause();
+        isMusicPlaying = false;
+      } else {
+        audioElement.play().then(() => {
+          isMusicPlaying = true;
+        }).catch(e => {
+          console.log("Audio play blocked or file not found:", e);
+        });
+      }
+      updateMusicIndicator();
+    }
+
+    function playNextTrack() {
+      loadTrack(currentTrackIndex + 1);
+    }
+
+    function playPrevTrack() {
+      loadTrack(currentTrackIndex - 1);
+    }
+
+    audioElement.addEventListener('ended', () => {
+      playNextTrack();
+    });
+
+    let scene, camera, renderer, controls, pointerControls, composer, bloomPass;
+    let interactiveObjects = [], roomLights = [], volumetricCones = [], lightFixtures = [];
+    
+    // Light-Bound Micro Dust Particle System (Strictly Centered Around Fixtures)
+    const lightSourcesInfo = []; 
+    let particleSystem, particlePositions, particleScales, particleAlphas, particleData = [];
+    const PARTICLES_PER_LIGHT = 180; // Dense micro-particles localized at fixture
+    const PARTICLE_RADIUS = 1.15;    // Tight bounds strictly around the lamp fixture
+    const PARTICLE_HEIGHT = 0.95;    // Vertical extent right under fixture
+
+    // Dynamic Canvas Textures for Sign Marquee and Wall Monitor
+    let doorSignCanvas, doorSignCtx, doorSignTex, marqueeScrollPos = 0;
+    let wallMonitorCanvas, wallMonitorCtx, wallMonitorTex;
+
+    let isLightOn = true, wallSwitchMesh;
+    let raycaster, mouse, hoveredObj = null, isModalOpen = false, isClickBlocked = false;
+
+    // Textures
+    let parquetTexture, parquetBumpMap, brickTexture, brickBumpMap, woodGrainTexture, fabricTexture, doorPanelTexture;
+
+    // Mini-Game State
+    let puzzleActive = false, targetTemp = 22, currentTemp = 28;
+
+    const clock = new THREE.Clock();
+    const moveKeys = { w: false, a: false, s: false, d: false };
+    let isFirstPerson = false;
+
+    const DEFAULT_CAM_POS = { x: 0, y: 4.2, z: 9.5 };
+    const DEFAULT_TARGET_POS = { x: 0, y: 1.0, z: 0 };
+
+    // Web Audio Synthesizer
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playClickSound() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(520, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    }
+
+    // --- PROCEDURAL TEXTURE & HIGH-GRAPHICS GENERATORS ---
+    function generateParquetTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#2d1a0e'; ctx.fillRect(0, 0, 1024, 1024);
+
+      const cols = 16, rows = 32; const w = 1024 / cols, h = 1024 / rows;
+      for(let r = 0; r < rows; r++) {
+        for(let c = 0; c < cols; c++) {
+          const shift = (r % 2 === 0) ? 0 : w / 2;
+          const x = (c * w + shift) % 1024; const y = r * h;
+          ctx.fillStyle = (r + c) % 2 === 0 ? '#482a17' : '#341d0f';
+          ctx.fillRect(x, y, w - 2, h - 2);
+          
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          for(let i = 0; i < 15; i++) {
+            ctx.fillRect(x, y + Math.random() * h, w - 2, 1);
+          }
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(4, 4);
+      return tex;
+    }
+
+    function generateParquetBumpMap() {
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, 1024, 1024);
+
+      const cols = 16, rows = 32; const w = 1024 / cols, h = 1024 / rows;
+      for(let r = 0; r < rows; r++) {
+        for(let c = 0; c < cols; c++) {
+          const shift = (r % 2 === 0) ? 0 : w / 2;
+          const x = (c * w + shift) % 1024; const y = r * h;
+          ctx.fillStyle = '#000000'; ctx.fillRect(x, y, w, 2); ctx.fillRect(x, y, 2, h);
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(4, 4);
+      return tex;
+    }
+
+    function generateBrickTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#181614'; ctx.fillRect(0, 0, 1024, 1024);
+
+      const rows = 32, cols = 16; const bH = 1024 / rows, bW = 1024 / cols;
+      for (let r = 0; r < rows; r++) {
+        const offset = (r % 2 === 0) ? 0 : bW / 2;
+        for (let c = -1; c <= cols; c++) {
+          const x = c * bW + offset; const y = r * bH;
+          const shade = Math.floor(Math.random() * 35);
+          ctx.fillStyle = `rgb(${110 + shade}, ${46 + Math.floor(shade / 2)}, ${28 + Math.floor(shade / 3)})`;
+          ctx.fillRect(x + 3, y + 3, bW - 6, bH - 6);
+
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          for (let k = 0; k < 18; k++) {
+            ctx.fillRect(x + 3 + Math.random() * (bW - 6), y + 3 + Math.random() * (bH - 6), 2, 2);
+          }
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 2);
+      return tex;
+    }
+
+    function generateBrickBumpMap() {
+      const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 1024, 1024);
+
+      const rows = 32, cols = 16; const bH = 1024 / rows, bW = 1024 / cols;
+      for (let r = 0; r < rows; r++) {
+        const offset = (r % 2 === 0) ? 0 : bW / 2;
+        for (let c = -1; c <= cols; c++) {
+          const x = c * bW + offset; const y = r * bH;
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 3, y + 3, bW - 6, bH - 6);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 2);
+      return tex;
+    }
+
+    function generateDoorTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#22140c'; ctx.fillRect(0, 0, 512, 1024);
+      
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      for(let i = 0; i < 800; i++) {
+        ctx.fillRect(0, Math.random() * 1024, 512, Math.random() * 2);
+      }
+
+      ctx.strokeStyle = '#120a06'; ctx.lineWidth = 12;
+      ctx.strokeRect(40, 40, 432, 420);
+      ctx.strokeRect(40, 500, 432, 460);
+
+      ctx.strokeStyle = '#3d2517'; ctx.lineWidth = 6;
+      ctx.strokeRect(46, 46, 420, 408);
+      ctx.strokeRect(46, 506, 420, 448);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function generateWoodGrainTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#28170c'; ctx.fillRect(0, 0, 512, 512);
+      ctx.fillStyle = 'rgba(12,6,3,0.4)';
+      for(let i = 0; i < 600; i++) {
+        ctx.fillRect(0, Math.random() * 512, 512, Math.random() * 3);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    function generateFabricTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#24252a'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      for(let i = 0; i < 256; i += 4) { ctx.fillRect(i, 0, 2, 256); ctx.fillRect(0, i, 256, 2); }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 3);
+      return tex;
+    }
+
+    function generateSoftParticleTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, 'rgba(255, 240, 210, 1.0)');
+      grad.addColorStop(0.35, 'rgba(255, 200, 140, 0.6)');
+      grad.addColorStop(0.8, 'rgba(255, 170, 90, 0.15)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function init() {
+      LoadingManager.updateProgress(20, "Generating High Quality Textures...");
+      parquetTexture = generateParquetTexture();
+      parquetBumpMap = generateParquetBumpMap();
+      brickTexture = generateBrickTexture();
+      brickBumpMap = generateBrickBumpMap();
+      woodGrainTexture = generateWoodGrainTexture();
+      fabricTexture = generateFabricTexture();
+      doorPanelTexture = generateDoorTexture();
+
+      LoadingManager.updateProgress(40, "Building Scene & Diffuse Volumetric Lighting...");
+      const container = document.getElementById('webgl-canvas');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050608);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(DEFAULT_CAM_POS.x, DEFAULT_CAM_POS.y, DEFAULT_CAM_POS.z);
+
+      renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true, powerPreference: "high-performance" });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+
+      const renderScene = new THREE.RenderPass(scene, camera);
+      bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.65, 0.8, 0.82);
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderScene); composer.addPass(bloomPass);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; controls.dampingFactor = 0.05;
+      controls.target.set(DEFAULT_TARGET_POS.x, DEFAULT_TARGET_POS.y, DEFAULT_TARGET_POS.z);
+
+      pointerControls = new THREE.PointerLockControls(camera, document.body);
+      pointerControls.addEventListener('unlock', () => { if (isFirstPerson) exitFirstPerson(); });
+
+      raycaster = new THREE.Raycaster(); mouse = new THREE.Vector2();
+
+      setupAtmosphericLighting();
+      buildLightBoundParticles();
+      buildRealisticHome();
+
+      window.addEventListener('resize', onResize);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('click', onClick);
+      window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in moveKeys) moveKeys[k] = true; });
+      window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k in moveKeys) moveKeys[k] = false; });
+
+      document.getElementById('btn-first-person').addEventListener('click', enterFirstPerson);
+      document.getElementById('modal-close-btn').addEventListener('click', resetOverview);
+
+      LoadingManager.complete();
+      animate();
+    }
+
+    function setupAtmosphericLighting() {
+      // Soft Ambient & Indirect Bounce Lighting across room
+      const softWindowLight = new THREE.DirectionalLight(0xffdfb3, 0.65);
+      softWindowLight.position.set(6, 9, 7); 
+      softWindowLight.castShadow = true;
+      softWindowLight.shadow.mapSize.width = 2048; 
+      softWindowLight.shadow.mapSize.height = 2048;
+      softWindowLight.shadow.bias = -0.0001;
+      scene.add(softWindowLight);
+
+      // Diffuse ambient fill for soft room-wide coverage
+      const ambient = new THREE.AmbientLight(0x1a1e28, 0.85); 
+      scene.add(ambient);
+
+      // WIDE DIFFUSE VOLUMETRIC LIGHTING (TIDAK LANCIPI & SANGAT MENYEBAR)
+      createWideDiffuseSpot(-3.5, 4.8, -0.5);
+      createWideDiffuseSpot(4.0, 4.8, -0.5);
+    }
+
+    function createWideDiffuseSpot(x, y, z) {
+      const fixtureGroup = new THREE.Group();
+      fixtureGroup.position.set(x, y, z);
+
+      // Wide Ceiling Dome Fixture
+      const rimGeo = new THREE.CylinderGeometry(0.8, 0.85, 0.12, 32);
+      const rimMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.15 });
+      const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+      fixtureGroup.add(rimMesh);
+
+      const lensGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.04, 32);
+      const lensMat = new THREE.MeshStandardMaterial({ color: 0xfff7ed, emissive: 0xffb355, emissiveIntensity: 2.8 });
+      const lensMesh = new THREE.Mesh(lensGeo, lensMat);
+      lensMesh.position.y = -0.05;
+      fixtureGroup.add(lensMesh);
+      lightFixtures.push(lensMesh);
+
+      scene.add(fixtureGroup);
+
+      // Diffuse Spot Light with Wide Angle & High Penumbra for realistic room dispersion
+      const sLight = new THREE.SpotLight(0xffb86c, 2.6);
+      sLight.position.set(x, y - 0.1, z);
+      sLight.angle = Math.PI / 2.2; // Sudut sangat lebar
+      sLight.penumbra = 0.95;       // Tepian cahaya sangat lembut & menyebar
+      sLight.distance = 16;
+      sLight.decay = 1.2;
+      sLight.castShadow = true;
+      sLight.shadow.bias = -0.0001;
+      scene.add(sLight);
+      roomLights.push(sLight);
+
+      // WIDE FRUSTUM VOLUMETRIC CONE (LEBAR DAN LOGICAL DIFFUSE SHED)
+      const radiusTop = 0.85;
+      const radiusBottom = 6.8;
+      const height = 4.8;
+      const coneGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 32, 1, true);
+      coneGeo.translate(0, -height / 2, 0);
+
+      const coneMat = new THREE.ShaderMaterial({
+        uniforms: {
+          color: { value: new THREE.Color(0xffb86c) },
+          opacity: { value: 0.16 }
+        },
+        vertexShader: `
+          varying vec3 vNormal;
+          varying vec3 vWorldPosition;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPosition.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vNormal;
+          varying vec3 vWorldPosition;
+          uniform vec3 color;
+          uniform float opacity;
+          void main() {
+            float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 1.6);
+            gl_FragColor = vec4(color, opacity * intensity);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const cone = new THREE.Mesh(coneGeo, coneMat);
+      cone.position.set(x, y - 0.1, z);
+      scene.add(cone);
+      volumetricCones.push(cone);
+
+      // Store local lamp coordinates for particle containment
+      lightSourcesInfo.push({
+        x: x, yTop: y - 0.1, yBottom: y - 0.1 - PARTICLE_HEIGHT,
+        radius: PARTICLE_RADIUS, height: PARTICLE_HEIGHT
+      });
+    }
+
+    // --- HIGH GRAPHICS: LOCALIZED LIGHT DUST PARTICLES (STRICTLY AROUND LAMP) ---
+    function buildLightBoundParticles() {
+      const totalParticles = lightSourcesInfo.length * PARTICLES_PER_LIGHT;
+      const pGeo = new THREE.BufferGeometry();
+      
+      particlePositions = new Float32Array(totalParticles * 3);
+      particleScales = new Float32Array(totalParticles);
+      particleAlphas = new Float32Array(totalParticles);
+      particleData = [];
+
+      let particleIdx = 0;
+      lightSourcesInfo.forEach((src) => {
+        for (let i = 0; i < PARTICLES_PER_LIGHT; i++) {
+          const p = resetParticleAroundFixture(src);
+          particlePositions[particleIdx * 3] = p.x;
+          particlePositions[particleIdx * 3 + 1] = p.y;
+          particlePositions[particleIdx * 3 + 2] = p.z;
+          
+          particleScales[particleIdx] = Math.random() * 0.18 + 0.08;
+          particleAlphas[particleIdx] = Math.random() * 0.7 + 0.3;
+
+          particleData.push({
+            lightSrc: src,
+            vy: Math.random() * 0.0018 + 0.0006,
+            vx: (Math.random() - 0.5) * 0.0012,
+            vz: (Math.random() - 0.5) * 0.0012,
+            wobbleSpeed: Math.random() * 2.5 + 1.0,
+            wobbleOffset: Math.random() * Math.PI * 2
+          });
+
+          particleIdx++;
+        }
+      });
+
+      pGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+      pGeo.setAttribute('aScale', new THREE.BufferAttribute(particleScales, 1));
+      pGeo.setAttribute('aAlpha', new THREE.BufferAttribute(particleAlphas, 1));
+
+      const particleShaderMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTexture: { value: generateSoftParticleTexture() },
+          uGlobalOpacity: { value: 1.0 },
+          uTime: { value: 0 }
+        },
+        vertexShader: `
+          attribute float aScale;
+          attribute float aAlpha;
+          varying float vAlpha;
+          uniform float uTime;
+          void main() {
+            vAlpha = aAlpha;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aScale * (180.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D uTexture;
+          uniform float uGlobalOpacity;
+          varying float vAlpha;
+          void main() {
+            vec4 tex = texture2D(uTexture, gl_PointCoord);
+            gl_FragColor = vec4(tex.rgb, tex.a * vAlpha * uGlobalOpacity);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      particleSystem = new THREE.Points(pGeo, particleShaderMat);
+      scene.add(particleSystem);
+    }
+
+    function resetParticleAroundFixture(src) {
+      // Particles stay localized in a small radius strictly surrounding the fixture
+      const r = Math.sqrt(Math.random()) * src.radius;
+      const theta = Math.random() * Math.PI * 2;
+      const yOffset = Math.random() * src.height;
+
+      return {
+        x: src.x + r * Math.cos(theta),
+        y: src.yTop - yOffset,
+        z: src.z + r * Math.sin(theta)
+      };
+    }
+
+    function toggleRoomLighting() {
+      playClickSound(); isLightOn = !isLightOn;
+
+      roomLights.forEach(l => gsap.to(l, { intensity: isLightOn ? 2.6 : 0.0, duration: 0.6 }));
+      lightFixtures.forEach(f => gsap.to(f.material, { emissiveIntensity: isLightOn ? 2.8 : 0.0, duration: 0.6 }));
+
+      volumetricCones.forEach(c => {
+        gsap.to(c.material.uniforms.opacity, { value: isLightOn ? 0.16 : 0.0, duration: 0.6 });
+      });
+
+      gsap.to(particleSystem.material.uniforms.uGlobalOpacity, {
+        value: isLightOn ? 1.0 : 0.0,
+        duration: 0.5,
+        onComplete: () => { particleSystem.visible = isLightOn; }
+      });
+
+      if (wallSwitchMesh) wallSwitchMesh.material.color.setHex(isLightOn ? 0x10b981 : 0xef4444);
+    }
+
+    function buildRealisticHome() {
+      const room = new THREE.Group();
+
+      const floorMat = new THREE.MeshStandardMaterial({ map: parquetTexture, bumpMap: parquetBumpMap, bumpScale: 0.015, roughness: 0.28, metalness: 0.08 });
+      const brickWallMat = new THREE.MeshStandardMaterial({ map: brickTexture, bumpMap: brickBumpMap, bumpScale: 0.035, roughness: 0.85, metalness: 0.02 });
+      const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x0f1117, roughness: 0.95 });
+      const woodPanelMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.45 });
+      const skirtingMat = new THREE.MeshStandardMaterial({ color: 0x0c0704, roughness: 0.5 });
+
+      // Main Floor
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 14), floorMat); 
+      floor.position.set(0, -0.1, 0); floor.receiveShadow = true; room.add(floor);
+
+      // Ceiling
+      const ceiling = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 14), ceilingMat); 
+      ceiling.position.set(0, 5.1, 0); room.add(ceiling);
+
+      // Outer Brick Walls
+      const backWall = new THREE.Mesh(new THREE.BoxGeometry(18, 5.0, 0.3), brickWallMat); 
+      backWall.position.set(0, 2.5, -6.85); backWall.receiveShadow = true; room.add(backWall);
+
+      const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5.0, 14), brickWallMat); 
+      leftWall.position.set(-8.85, 2.5, 0); leftWall.receiveShadow = true; room.add(leftWall);
+
+      const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5.0, 14), brickWallMat); 
+      rightWall.position.set(8.85, 2.5, 0); rightWall.receiveShadow = true; room.add(rightWall);
+
+      // Skirting Baseboards
+      const skirtBack = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 0.05), skirtingMat); 
+      skirtBack.position.set(0, 0.1, -6.675); room.add(skirtBack);
+
+      const skirtLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 14), skirtingMat); 
+      skirtLeft.position.set(-8.675, 0.1, 0); room.add(skirtLeft);
+
+      // Room Partition Wall
+      const partitionBase = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5.0, 8.5), woodPanelMat);
+      partitionBase.position.set(2.0, 2.5, -2.45); partitionBase.castShadow = true; partitionBase.receiveShadow = true; room.add(partitionBase);
+
+      // ROOM SECTIONS
+      buildBedroom(room);
+      buildLivingSpace(room);
+      buildWorkstationDesk(room);
+
+      // NEW PASSAGES: UNDERGROUND LAB & OUTSIDE EXIT
+      buildUndergroundLabPassage(room);
+      buildOutsideExitDoor(room);
+
+      // DYNAMIC WALL HOLOGRAM / MONITOR
+      buildWallHologramMonitor(room);
+
+      // "Developed by CelxTea" TEXT ON CENTER FLOOR
+      buildCenterFloorText(room);
+
+      scene.add(room);
+    }
+
+    // --- "Developed by CelxTea" FLOOR TEXT ---
+    function buildCenterFloorText(parent) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 1024, 256);
+
+      ctx.fillStyle = '#c5a059';
+      ctx.font = 'bold 52px "Orbitron", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(197, 160, 89, 0.8)';
+      ctx.shadowBlur = 12;
+      ctx.fillText('Developed by CelxTea', 512, 128);
+
+      const textTex = new THREE.CanvasTexture(canvas);
+      const textMat = new THREE.MeshStandardMaterial({
+        map: textTex,
+        transparent: true,
+        opacity: 0.85,
+        roughness: 0.3,
+        emissive: 0xc5a059,
+        emissiveIntensity: 0.35
+      });
+
+      const textGeo = new THREE.PlaneGeometry(5.5, 1.375);
+      const textMesh = new THREE.Mesh(textGeo, textMat);
+      textMesh.rotation.x = -Math.PI / 2;
+      textMesh.position.set(2, 0.015, 5); // Di lantai tengah yang kosong
+      parent.add(textMesh);
+    }
+
+    function buildBedroom(parent) {
+      const bedGroup = new THREE.Group(); 
+      bedGroup.position.set(5.5, 0, -4.5);
+
+      const fabricBedMat = new THREE.MeshStandardMaterial({ map: fabricTexture, roughness: 0.8 });
+      const sheetMat = new THREE.MeshStandardMaterial({ color: 0x1e1e24, roughness: 0.85 });
+      const blanketMat = new THREE.MeshStandardMaterial({ color: 0x881337, roughness: 0.75 });
+      const woodMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.45 });
+
+      const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.4, 3.6), woodMat); 
+      bedFrame.position.set(0, 0.2, 0); bedFrame.castShadow = true; bedGroup.add(bedFrame);
+
+      const mattress = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.4, 3.4), sheetMat); 
+      mattress.position.set(0, 0.6, 0); mattress.castShadow = true; bedGroup.add(mattress);
+
+      const blanket = new THREE.Mesh(new THREE.BoxGeometry(3.12, 0.05, 2.0), blanketMat); 
+      blanket.position.set(0, 0.81, 0.6); bedGroup.add(blanket);
+
+      const headboard = new THREE.Mesh(new THREE.BoxGeometry(3.3, 1.8, 0.2), fabricBedMat); 
+      headboard.position.set(0, 0.9, -1.6); headboard.castShadow = true; bedGroup.add(headboard);
+
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.2, 0.65), sheetMat); p1.position.set(-0.8, 0.88, -1.1); bedGroup.add(p1);
+      const p2 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.2, 0.65), sheetMat); p2.position.set(0.8, 0.88, -1.1); bedGroup.add(p2);
+
+      const nightstand = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), woodMat); 
+      nightstand.position.set(-2.2, 0.3, -1.2); nightstand.castShadow = true; bedGroup.add(nightstand);
+
+      const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.3), new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.25, metalness: 0.4 })); 
+      lampBase.position.set(-2.2, 0.75, -1.2); bedGroup.add(lampBase);
+
+      const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.35), new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.85, emissive: 0xfde68a, emissiveIntensity: 1.1 })); 
+      lampShade.position.set(-2.2, 1.05, -1.2); bedGroup.add(lampShade);
+
+      const bedHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.4, 3.8), new THREE.MeshBasicMaterial({ visible: false }));
+      bedHitbox.position.y = 0.7; bedHitbox.userData = { type: "bedroom" }; interactiveObjects.push(bedHitbox); bedGroup.add(bedHitbox);
+
+      parent.add(bedGroup);
+    }
+
+    function buildLivingSpace(parent) {
+      const livingGroup = new THREE.Group(); 
+      livingGroup.position.set(-4.5, 0, 1.2);
+
+      const rugMat = new THREE.MeshStandardMaterial({ color: 0x24252a, roughness: 0.95 });
+      const sofaMat = new THREE.MeshStandardMaterial({ map: fabricTexture, roughness: 0.8 });
+      const tableMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.35 });
+      const slatMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.45 });
+
+      // Rug
+      const rug = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.01, 3.2), rugMat); 
+      rug.position.set(0, 0.005, 0); rug.receiveShadow = true; livingGroup.add(rug);
+
+      // Sofa
+      const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 1.4), sofaMat); 
+      sofaBase.position.set(0, 0.2, 0); sofaBase.castShadow = true; livingGroup.add(sofaBase);
+
+      const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.8, 0.35), sofaMat); 
+      sofaBack.position.set(0, 0.6, -0.525); sofaBack.castShadow = true; livingGroup.add(sofaBack);
+
+      const sofaArmL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, 1.4), sofaMat); 
+      sofaArmL.position.set(-1.625, 0.5, 0); livingGroup.add(sofaArmL);
+
+      const sofaArmR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, 1.4), sofaMat); 
+      sofaArmR.position.set(1.625, 0.5, 0); livingGroup.add(sofaArmR);
+
+      // Sofa Back Slat Partition
+      const sofaPartitionGroup = new THREE.Group();
+      sofaPartitionGroup.position.set(0, 0, -0.85);
+
+      const topRail = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.1, 0.1), slatMat);
+      topRail.position.set(0, 3.2, 0); sofaPartitionGroup.add(topRail);
+
+      const bottomRail = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.1, 0.1), slatMat);
+      bottomRail.position.set(0, 0.05, 0); sofaPartitionGroup.add(bottomRail);
+
+      const slatCount = 12;
+      const slatSpacing = 3.6 / (slatCount - 1);
+      for(let i = 0; i < slatCount; i++) {
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(0.08, 3.1, 0.08), slatMat);
+        slat.position.set(-1.8 + (i * slatSpacing), 1.625, 0);
+        slat.castShadow = true; slat.receiveShadow = true;
+        sofaPartitionGroup.add(slat);
+      }
+      livingGroup.add(sofaPartitionGroup);
+
+      // Coffee Table
+      const table = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 1.1), tableMat); 
+      table.position.set(0, 0.175, 1.4); table.castShadow = true; livingGroup.add(table);
+
+      const sofaHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.2, 1.8), new THREE.MeshBasicMaterial({ visible: false }));
+      sofaHitbox.position.y = 0.6; sofaHitbox.userData = { type: "sofa" }; interactiveObjects.push(sofaHitbox); livingGroup.add(sofaHitbox);
+
+      parent.add(livingGroup);
+    }
+
+    function buildWorkstationDesk(parent) {
+      const deskGroup = new THREE.Group(); 
+      deskGroup.position.set(-5.2, 0, -4.5);
+
+      const deskMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.35 });
+      
+      const desk = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.8, 1.6), deskMat); 
+      desk.position.set(0, 0.4, 0); desk.castShadow = true; deskGroup.add(desk);
+
+      const screenMat = new THREE.MeshStandardMaterial({ color: 0x020617, emissive: 0x0284c7, emissiveIntensity: 1.3 });
+      const monitor = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.75, 0.08), screenMat); 
+      monitor.position.set(0, 1.225, -0.3); deskGroup.add(monitor);
+
+      const monitorStand = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 })); 
+      monitorStand.position.set(0, 0.825, -0.3); deskGroup.add(monitorStand);
+
+      // Ergonomic Chair Facing PC Desk
+      buildWorkstationChair(deskGroup);
+
+      // Wall Light Switch
+      wallSwitchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.14), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 1.4 }));
+      wallSwitchMesh.position.set(-8.68, 1.8, 0); wallSwitchMesh.userData = { type: "light_switch" }; interactiveObjects.push(wallSwitchMesh); parent.add(wallSwitchMesh);
+
+      const deskHitbox = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.2, 1.8), new THREE.MeshBasicMaterial({ visible: false }));
+      deskHitbox.position.y = 0.6; deskHitbox.userData = { type: "home_pc" }; interactiveObjects.push(deskHitbox); deskGroup.add(deskHitbox);
+
+      parent.add(deskGroup);
+    }
+
+    function buildWorkstationChair(parent) {
+      const chairGroup = new THREE.Group();
+      // Positioned directly in front of desk facing towards monitor (-Z)
+      chairGroup.position.set(0, 0, 1.0);
+
+      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.45 });
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.2 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0284c7, emissiveIntensity: 0.6 });
+
+      // Star Base & Castors
+      const baseHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 12), metalMat);
+      baseHub.position.y = 0.1; chairGroup.add(baseHub);
+
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * Math.PI * 2) / 5;
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.45), metalMat);
+        leg.position.set(Math.sin(angle) * 0.22, 0.08, Math.cos(angle) * 0.22);
+        leg.rotation.y = angle;
+        chairGroup.add(leg);
+      }
+
+      // Cylinder Shaft
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.35, 12), metalMat);
+      shaft.position.y = 0.25; chairGroup.add(shaft);
+
+      // Seat Cushion
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.65), leatherMat);
+      seat.position.y = 0.45; seat.castShadow = true; chairGroup.add(seat);
+
+      // Chair Backrest
+      const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.08), leatherMat);
+      backrest.position.set(0, 0.9, 0.28); backrest.rotation.x = -0.05; backrest.castShadow = true; chairGroup.add(backrest);
+
+      // Ergonomic Neon Accents
+      const stripL = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.8, 0.02), accentMat);
+      stripL.position.set(-0.28, 0.9, 0.32); chairGroup.add(stripL);
+
+      const stripR = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.8, 0.02), accentMat);
+      stripR.position.set(0.28, 0.9, 0.32); chairGroup.add(stripR);
+
+      // Armrests
+      const armL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.4), metalMat);
+      armL.position.set(-0.35, 0.62, 0.05); chairGroup.add(armL);
+
+      const armR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.4), metalMat);
+      armR.position.set(0.35, 0.62, 0.05); chairGroup.add(armR);
+
+      parent.add(chairGroup);
+    }
+
+    // --- UNDERGROUND DESCENT PASSAGE TO CELESTIA LAB ---
+    function buildUndergroundLabPassage(parent) {
+      const labGroup = new THREE.Group();
+      labGroup.position.set(0, 0, -6.5);
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3, metalness: 0.85 });
+      const doorMat = new THREE.MeshStandardMaterial({ map: doorPanelTexture, roughness: 0.45, metalness: 0.25 });
+      const stairMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+
+      // Door Frame Arch
+      const fL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.4, 0.3), frameMat); fL.position.set(-1.25, 1.7, 0); labGroup.add(fL);
+      const fR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.4, 0.3), frameMat); fR.position.set(1.25, 1.7, 0); labGroup.add(fR);
+      const fT = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.25, 0.3), frameMat); fT.position.set(0, 3.4, 0); labGroup.add(fT);
+
+      // Heavy Vaulted Underground Portal Door
+      const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.12), doorMat);
+      doorLeaf.position.set(0, 1.6, -0.05); doorLeaf.castShadow = true; labGroup.add(doorLeaf);
+
+      // Descending Stairs
+      for (let i = 0; i < 6; i++) {
+        const step = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.2, 0.4), stairMat);
+        step.position.set(0, -0.1 - (i * 0.2), -0.2 - (i * 0.35));
+        labGroup.add(step);
+      }
+
+      // Blue Glow indicator light above door
+      const statusLight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 2.2 }));
+      statusLight.position.set(0, 3.75, 0.12); labGroup.add(statusLight);
+
+      // Signage Text Canvas Dynamic Marquee / Horizontal Scroll
+      doorSignCanvas = document.createElement('canvas'); doorSignCanvas.width = 512; doorSignCanvas.height = 128;
+      doorSignCtx = doorSignCanvas.getContext('2d');
+      doorSignTex = new THREE.CanvasTexture(doorSignCanvas);
+
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.1, 0.5), 
+        new THREE.MeshStandardMaterial({ map: doorSignTex, emissive: 0x0284c7, emissiveIntensity: 1.2 })
+      );
+      sign.position.set(0, 4.1, 0.12); labGroup.add(sign);
+
+      const labHitbox = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.6, 0.6), new THREE.MeshBasicMaterial({ visible: false }));
+      labHitbox.position.y = 1.7; labHitbox.userData = { type: "lab_portal" }; interactiveObjects.push(labHitbox); labGroup.add(labHitbox);
+
+      parent.add(labGroup);
+    }
+
+    // --- DYNAMIC WALL HOLOGRAM / ADVANCED DISPLAY MONITOR ---
+    function buildWallHologramMonitor(parent) {
+      const displayGroup = new THREE.Group();
+      displayGroup.position.set(-3.2, 2.7, -6.65);
+
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(3.6, 2.0, 0.08),
+        new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.2 })
+      );
+      displayGroup.add(frame);
+
+      wallMonitorCanvas = document.createElement('canvas');
+      wallMonitorCanvas.width = 1024; wallMonitorCanvas.height = 512;
+      wallMonitorCtx = wallMonitorCanvas.getContext('2d');
+      wallMonitorTex = new THREE.CanvasTexture(wallMonitorCanvas);
+
+      const screenMat = new THREE.MeshStandardMaterial({
+        map: wallMonitorTex,
+        emissiveMap: wallMonitorTex,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 1.4,
+        roughness: 0.2
+      });
+
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.48, 1.88), screenMat);
+      screen.position.z = 0.045;
+      displayGroup.add(screen);
+
+      parent.add(displayGroup);
+    }
+
+    function updateWallMonitorCanvas(time) {
+      if (!wallMonitorCtx) return;
+      const ctx = wallMonitorCtx;
+      const w = 1024, h = 512;
+
+      ctx.fillStyle = '#030712'; ctx.fillRect(0, 0, w, h);
+
+      // Sci-fi Grid Overlay
+      ctx.strokeStyle = 'rgba(14, 165, 233, 0.15)'; ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+      for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+      // Header Bar
+      ctx.fillStyle = '#0284c7'; ctx.font = 'bold 24px "Orbitron", sans-serif';
+      ctx.fillText('TELEMETRY', 40, 50);
+
+      ctx.fillStyle = '#38bdf8'; ctx.font = '16px "Fira Code", monospace';
+      ctx.fillText(`SYSTEM OK // TIME: ${time.toFixed(2)}s`, w - 340, 50);
+
+      // Dynamic Audio Waveform Simulation
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.beginPath();
+      for (let i = 0; i < 400; i += 10) {
+        const x = 40 + i;
+        const y = 200 + Math.sin(time * 4 + i * 0.05) * 45 + Math.cos(time * 8 + i * 0.02) * 20;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Live Interactive Bars Data
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.25)'; ctx.fillRect(500, 120, 480, 180);
+      ctx.strokeStyle = '#38bdf8'; ctx.strokeRect(500, 120, 480, 180);
+
+      ctx.fillStyle = '#4ade80';
+      for (let b = 0; b < 12; b++) {
+        const barHeight = Math.abs(Math.sin(time * 3 + b)) * 130 + 20;
+        ctx.fillRect(520 + b * 38, 280 - barHeight, 24, barHeight);
+      }
+
+      // Bottom Status Logs
+      ctx.fillStyle = '#f59e0b'; ctx.font = '18px "Fira Code", monospace';
+      ctx.fillText(`> HVAC CORE: RUNNING (${currentTemp}°C)`, 40, 360);
+      ctx.fillText(`> GRID POWER: ${isLightOn ? 'STABLE [100%]' : 'SAVING [20%]'}` , 40, 400);
+      ctx.fillText(`> SECURITY LOCK: UNLOCKED`, 40, 440);
+
+      wallMonitorTex.needsUpdate = true;
+    }
+
+    function updateDoorSignMarquee(delta) {
+      if (!doorSignCtx) return;
+      const ctx = doorSignCtx;
+      const w = 512, h = 128;
+
+      marqueeScrollPos -= delta * 120;
+      if (marqueeScrollPos < -800) marqueeScrollPos = w;
+
+      ctx.fillStyle = '#090d16'; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 4; ctx.strokeRect(4, 4, w - 8, h - 8);
+
+      ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 28px "Orbitron", sans-serif'; ctx.textBaseline = 'middle';
+      ctx.fillText('▼ UNDERGROUND CELESTIA LAB PASSAGE — SECTOR B ACCESS', marqueeScrollPos, h / 2);
+
+      doorSignTex.needsUpdate = true;
+    }
+
+    // --- OUTSIDE EXIT DOOR ---
+    function buildOutsideExitDoor(parent) {
+      const exitGroup = new THREE.Group();
+      exitGroup.position.set(8.65, 0, 2.5);
+      exitGroup.rotation.y = -Math.PI / 2;
+
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.4 });
+      const woodDoorMat = new THREE.MeshStandardMaterial({ map: doorPanelTexture, roughness: 0.55 });
+
+      // Door Frame
+      const fL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), frameMat); fL.position.set(-1.1, 1.6, 0); exitGroup.add(fL);
+      const fR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), frameMat); fR.position.set(1.1, 1.6, 0); exitGroup.add(fR);
+      const fT = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 0.2), frameMat); fT.position.set(0, 3.2, 0); exitGroup.add(fT);
+
+      // Solid Outer Door
+      const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.0, 0.1), woodDoorMat);
+      doorLeaf.position.set(0, 1.5, 0); exitGroup.add(doorLeaf);
+
+      // Exit Sign
+      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 96;
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = '#064e3b'; ctx.fillRect(0, 0, 256, 96);
+      ctx.fillStyle = '#34d399'; ctx.font = 'bold 32px "Orbitron", sans-serif'; ctx.textAlign = 'center'; 
+      ctx.fillText('EXIT →', 128, 60);
+
+      const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.4), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(canvas), emissive: 0x10b981, emissiveIntensity: 1.3 }));
+      exitSign.position.set(0, 3.5, 0.08); exitGroup.add(exitSign);
+
+      const exitHitbox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
+      exitHitbox.position.y = 1.6; exitHitbox.userData = { type: "exit_door" }; interactiveObjects.push(exitHitbox); exitGroup.add(exitHitbox);
+
+      parent.add(exitGroup);
+    }
+
+    function enterFirstPerson() {
+      if (isModalOpen) return;
+      playClickSound(); isFirstPerson = true; controls.enabled = false;
+      gsap.to(camera.position, { x: 0, y: 1.6, z: 5, duration: 1, ease: "power2.out", onComplete: () => pointerControls.lock() });
+    }
+
+    function exitFirstPerson() {
+      isFirstPerson = false;
+      if (pointerControls.isLocked) pointerControls.unlock();
+      controls.enabled = true;
+    }
+
+    function navigateToLab() {
+      playClickSound();
+      window.location.href = './celestialab.html';
+    }
+
+    function onMouseMove(e) {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      const hint = document.getElementById('cursor-hint'); hint.style.left = `${e.clientX}px`; hint.style.top = `${e.clientY}px`;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(interactiveObjects);
+
+      if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if (hoveredObj !== obj) {
+          hoveredObj = obj; hint.style.opacity = '1';
+          const t = obj.userData.type;
+          if (t === "lab_portal") hint.textContent = "DESCEND TO UNDERGROUND CELESTIA LAB";
+          else if (t === "exit_door") hint.textContent = "EXIT TO OUTSIDE WORLD";
+          else if (t === "home_pc") hint.textContent = "ACCESS WORKSTATION PC";
+          else if (t === "bedroom") hint.textContent = "INSPECT BEDROOM SUITE";
+          else if (t === "sofa") hint.textContent = "INSPECT LIVING ROOM LOUNGE";
+          else if (t === "light_switch") hint.textContent = "TOGGLE ROOM LIGHTS";
+          else hint.textContent = "INSPECT";
+          document.body.style.cursor = 'pointer';
+        }
+      } else {
+        hoveredObj = null; hint.style.opacity = '0'; document.body.style.cursor = 'default';
+      }
+    }
+
+    function onClick() {
+      if (!hoveredObj || isModalOpen || isClickBlocked) return;
+      const type = hoveredObj.userData.type;
+
+      if (type === "light_switch") {
+        toggleRoomLighting();
+      } else if (type === "lab_portal") {
+        playClickSound();
+        showModal({ name: "Underground Lab Passage", desc: "Vaulted subterranean staircase descending underneath the home floor directly towards Sector B Laboratory.", tag: "UNDERGROUND ACCESS", isPortal: true });
+      } else if (type === "exit_door") {
+        playClickSound();
+        showModal({ name: "Main Home Exit", desc: "Heavy perimeter door leading outside the home.", tag: "EXTERIOR EXIT" });
+      } else if (type === "home_pc") {
+        playClickSound(); controls.enabled = false;
+        gsap.to(camera.position, { x: -5.2, y: 1.5, z: -2.8, duration: 1.4, ease: "power3.inOut" });
+        gsap.to(controls.target, { x: -5.2, y: 1.225, z: -4.5, duration: 1.4, ease: "power3.inOut", onComplete: () => {
+          showModal({ name: "Personal Workstation PC", desc: "Private terminal for Smart Home automation, music playback, and environmental telemetry.", tag: "SMART TERMINAL", hasTerminal: true, hasMusic: true });
+        }});
+      } else if (type === "bedroom") {
+        playClickSound();
+        showModal({ name: "Master Bedroom Suite", desc: "Private quarters featuring a king-size bed, exposed brick backing, acoustic partition, and bedside lighting.", tag: "PRIVATE QUARTERS" });
+      } else if (type === "sofa") {
+        playClickSound();
+        showModal({ name: "Living Room Lounge", desc: "Contemporary fabric sofa with a stylish wooden slat partition behind, floor rug, and coffee table.", tag: "LOUNGE AREA" });
+      }
+    }
+
+    function showModal(data) {
+      isModalOpen = true;
+      const modal = document.getElementById('project-modal');
+      document.getElementById('m-title').textContent = data.name;
+      document.getElementById('m-desc').textContent = data.desc;
+      document.getElementById('m-tag').textContent = data.tag || "HOME";
+
+      document.getElementById('portal-wrapper').style.display = data.isPortal ? 'block' : 'none';
+
+      // Music Player Setup
+      const musicEl = document.getElementById('m-music-player');
+      if (data.hasMusic) {
+        musicEl.style.display = 'flex';
+        updateMusicIndicator();
+      } else {
+        musicEl.style.display = 'none';
+      }
+
+      // Terminal Setup
+      const termEl = document.getElementById('m-terminal');
+      if (data.hasTerminal) {
+        termEl.style.display = 'block'; setupInteractiveTerminal();
+      } else {
+        termEl.style.display = 'none';
+      }
+
+      modal.classList.add('active');
+    }
+
+    function resetOverview() {
+      isClickBlocked = true; setTimeout(() => { isClickBlocked = false; }, 400);
+      document.getElementById('project-modal').classList.remove('active');
+      isModalOpen = false; if (isFirstPerson) exitFirstPerson();
+
+      gsap.to(camera.position, { x: DEFAULT_CAM_POS.x, y: DEFAULT_CAM_POS.y, z: DEFAULT_CAM_POS.z, duration: 1.4, ease: "power3.inOut" });
+      gsap.to(controls.target, { x: DEFAULT_TARGET_POS.x, y: DEFAULT_TARGET_POS.y, z: DEFAULT_TARGET_POS.z, duration: 1.4, ease: "power3.inOut", onComplete: () => { controls.enabled = true; } });
+    }
+
+    // --- TERMINAL & SMART HOME MINI-GAME ---
+    function setupInteractiveTerminal() {
+      puzzleActive = false;
+      const terminalEl = document.getElementById('m-terminal');
+      terminalEl.innerHTML = `
+        <div id="terminal-history">
+          <div class="terminal-line"><span class="terminal-prompt">home@CelxTea:~$</span> SMART HOME READY. TYPE 'help'.</div>
+        </div>
+        <div class="terminal-input-row">
+          <span class="terminal-prompt">home@CelxTea:~$</span>
+          <input type="text" id="terminal-cli-input" class="terminal-input" placeholder="Enter command..." autocomplete="off" spellcheck="false" />
+        </div>
+      `;
+
+      const cliInput = document.getElementById('terminal-cli-input');
+      const historyEl = document.getElementById('terminal-history');
+
+      cliInput.addEventListener('keydown', (evt) => {
+        if (evt.key === 'Enter') {
+          const rawCmd = cliInput.value.trim(); const cmd = rawCmd.toLowerCase(); cliInput.value = '';
+          if (!cmd) return; playClickSound();
+
+          const userCmdLine = document.createElement('div');
+          userCmdLine.className = 'terminal-line';
+          userCmdLine.innerHTML = `<span class="terminal-prompt">home@celestia:~$</span> <span>${rawCmd}</span>`;
+          historyEl.appendChild(userCmdLine);
+
+          if (puzzleActive) { handlePuzzleInput(cmd, historyEl, terminalEl); return; }
+
+          let responseText = '';
+          if (cmd === 'help') {
+            responseText = `COMMANDS:<br>- <b>status</b> : Room climate & lock telemetry<br>- <b>manage_smart_home</b> : Calibrate climate HVAC<br>- <b>clear</b> : Clear console output`;
+          } else if (cmd === 'status') {
+            responseText = `SUITE TEMP: ${currentTemp}°C | LIGHTS: ${isLightOn ? 'ON' : 'OFF'} | UNDERGROUND LAB LOCK: UNLOCKED`;
+          } else if (cmd === 'manage_smart_home') {
+            startMiniGame(historyEl); return;
+          } else if (cmd === 'clear') {
+            historyEl.innerHTML = ''; return;
+          } else {
+            responseText = `Unknown command '${rawCmd}'. Type 'help' for available options.`;
+          }
+
+          const resLine = document.createElement('div'); resLine.className = 'terminal-line'; resLine.innerHTML = responseText;
+          historyEl.appendChild(resLine); terminalEl.scrollTop = terminalEl.scrollHeight;
+        }
+      });
+    }
+
+    function startMiniGame(historyEl) {
+      puzzleActive = true;
+      const pLine = document.createElement('div'); pLine.className = 'terminal-line'; pLine.style.color = '#f59e0b';
+      pLine.innerHTML = `[HVAC CONTROL] CLIMATE CALIBRATION<br>Current Temp: ${currentTemp}°C. Target Temp: ${targetTemp}°C.<br>Type 'set_temp 22' to equalize climate.`;
+      historyEl.appendChild(pLine);
+    }
+
+    function handlePuzzleInput(cmd, historyEl, terminalEl) {
+      const pLine = document.createElement('div'); pLine.className = 'terminal-line';
+
+      if (cmd === `set_temp ${targetTemp}`) {
+        currentTemp = targetTemp; puzzleActive = false; pLine.style.color = '#4ade80';
+        pLine.innerHTML = `[CALIBRATION SUCCESS] Room temperature set to target ${currentTemp}°C!`;
+      } else if (cmd.startsWith('set_temp ')) {
+        pLine.style.color = '#ef4444'; pLine.innerHTML = `Incorrect temperature target. Target value is ${targetTemp}°C!`;
+      } else {
+        pLine.innerHTML = `Type 'set_temp ${targetTemp}'`;
+      }
+
+      historyEl.appendChild(pLine); terminalEl.scrollTop = terminalEl.scrollHeight;
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      const elapsedTime = clock.getElapsedTime();
+
+      if (controls && controls.enabled) controls.update();
+
+      // DYNAMIC TEXTURE UPDATES
+      updateDoorSignMarquee(delta);
+      updateWallMonitorCanvas(elapsedTime);
+
+      // PARTICLES DYNAMICS (LOCALLY CONFINED STRICTLY AROUND LAMP)
+      if (particleSystem && isLightOn) {
+        particleSystem.material.uniforms.uTime.value = elapsedTime;
+        const positions = particleSystem.geometry.attributes.position.array;
+        
+        for (let i = 0; i < particleData.length; i++) {
+          const pD = particleData[i];
+          const src = pD.lightSrc;
+
+          let px = positions[i * 3];
+          let py = positions[i * 3 + 1];
+          let pz = positions[i * 3 + 2];
+
+          // Slow ambient floating
+          py -= pD.vy;
+          px += pD.vx + Math.sin(elapsedTime * pD.wobbleSpeed + pD.wobbleOffset) * 0.0008;
+          pz += pD.vz + Math.cos(elapsedTime * pD.wobbleSpeed + pD.wobbleOffset) * 0.0008;
+
+          const distFromCenter = Math.sqrt((px - src.x) * (px - src.x) + (pz - src.z) * (pz - src.z));
+
+          // Bound check: Reset if particle leaves the tight lamp boundary radius or vertical range
+          if (py < src.yBottom || py > src.yTop || distFromCenter > src.radius) {
+            const newP = resetParticleAroundFixture(src);
+            px = newP.x;
+            py = src.yTop - (Math.random() * 0.1); // Spawns directly at lamp fixture
+            pz = newP.z;
+          }
+
+          positions[i * 3] = px;
+          positions[i * 3 + 1] = py;
+          positions[i * 3 + 2] = pz;
+        }
+
+        particleSystem.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // WASD First-person Movement
+      if (!isModalOpen) {
+        const speed = 4.5 * delta;
+        const forward = new THREE.Vector3(), side = new THREE.Vector3();
+        camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
+        side.crossVectors(forward, camera.up).normalize();
+
+        const moveDir = new THREE.Vector3();
+        if (moveKeys.w) moveDir.add(forward); if (moveKeys.s) moveDir.sub(forward);
+        if (moveKeys.d) moveDir.add(side); if (moveKeys.a) moveDir.sub(side);
+
+        if (moveDir.lengthSq() > 0) {
+          moveDir.normalize().multiplyScalar(speed);
+          camera.position.add(moveDir);
+          if (!isFirstPerson && controls.enabled) controls.target.add(moveDir);
+        }
+      }
+
+      composer.render();
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
