@@ -68,9 +68,21 @@
       background: var(--glass-dark); border: 1px solid var(--glass-border); color: var(--text-light);
       font-family: var(--font-code); font-size: 0.8rem; font-weight: 600; padding: 10px 16px;
       border-radius: 8px; cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(12px);
-      display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); touch-action: manipulation;
     }
-    .hud-btn:hover { background: #1c202b; transform: translateY(-2px); border-color: var(--accent-gold); }
+    .hud-btn:hover, .hud-btn:active { background: #1c202b; transform: translateY(-2px); border-color: var(--accent-gold); }
+
+    /* MOBILE JOYSTICK CONTROLS */
+    #mobile-controls {
+      position: fixed; bottom: 30px; left: 30px; z-index: 150; display: none; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .dpad-row { display: flex; gap: 8px; }
+    .dpad-btn {
+      width: 50px; height: 50px; background: var(--glass-dark); border: 1px solid var(--accent-gold);
+      color: #fff; font-size: 1.2rem; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(8px);
+    }
+    .dpad-btn:active { background: var(--accent-gold); color: #000; }
 
     /* UI MODAL */
     .project-modal {
@@ -87,10 +99,10 @@
       font-family: var(--font-code); font-size: 0.8rem; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .close-btn {
-      background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; width: 24px; height: 24px;
-      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+      background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; width: 28px; height: 28px;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
     }
-    .close-btn:hover { background: #ef4444; }
+    .close-btn:hover, .close-btn:active { background: #ef4444; }
 
     .modal-body-content { padding: 24px; }
     .project-tag { font-family: var(--font-code); font-size: 0.7rem; color: #f59e0b; background: rgba(217, 119, 6, 0.15); padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(217, 119, 6, 0.3); }
@@ -102,7 +114,7 @@
       color: #fff; border: none; border-radius: 8px; font-family: var(--font-code); font-weight: 700;
       cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .action-btn-portal:hover { background: linear-gradient(135deg, #0369a1, #075985); transform: translateY(-2px); }
+    .action-btn-portal:hover, .action-btn-portal:active { background: linear-gradient(135deg, #0369a1, #075985); transform: translateY(-2px); }
 
     /* TERMINAL */
     .terminal-console {
@@ -128,7 +140,7 @@
       border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: all 0.2s ease;
       display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
     }
-    .music-btn:hover { background: var(--accent-gold); color: #000; border-color: var(--accent-gold); }
+    .music-btn:hover, .music-btn:active { background: var(--accent-gold); color: #000; border-color: var(--accent-gold); }
 
     /* HOVER LABEL */
     .cursor-label {
@@ -162,6 +174,16 @@
   <div class="camera-hud-controls">
     <button class="hud-btn" id="btn-first-person"><i class="fa-solid fa-person"></i> First Person</button>
     <button class="hud-btn" onclick="resetOverview()"><i class="fa-solid fa-rotate-right"></i> Reset View</button>
+  </div>
+
+  <!-- MOBILE JOYSTICK DPAD -->
+  <div id="mobile-controls">
+    <button class="dpad-btn" id="btn-up"><i class="fa-solid fa-chevron-up"></i></button>
+    <div class="dpad-row">
+      <button class="dpad-btn" id="btn-left"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="dpad-btn" id="btn-down"><i class="fa-solid fa-chevron-down"></i></button>
+      <button class="dpad-btn" id="btn-right"><i class="fa-solid fa-chevron-right"></i></button>
+    </div>
   </div>
 
   <!-- MODAL UI -->
@@ -216,7 +238,6 @@
     };
 
     // --- MUSIC PLAYER PLAYLIST & STATE ---
-    // Masukkan file lokal .webm kamu di dalam array ini secara manual
     const LOCAL_PLAYLIST = [
       { title: "Track 1 - Amaoto", src: "./Amaoto.webm" }
     ];
@@ -282,14 +303,14 @@
     let scene, camera, renderer, controls, pointerControls, composer, bloomPass;
     let interactiveObjects = [], roomLights = [], volumetricCones = [], lightFixtures = [];
     
-    // Light-Bound Micro Dust Particle System (Strictly Centered Around Fixtures)
+    // Light-Bound Micro Dust Particle System
     const lightSourcesInfo = []; 
     let particleSystem, particlePositions, particleScales, particleAlphas, particleData = [];
-    const PARTICLES_PER_LIGHT = 180; // Dense micro-particles localized at fixture
-    const PARTICLE_RADIUS = 1.15;    // Tight bounds strictly around the lamp fixture
-    const PARTICLE_HEIGHT = 0.95;    // Vertical extent right under fixture
+    const PARTICLES_PER_LIGHT = 180; 
+    const PARTICLE_RADIUS = 1.15;    
+    const PARTICLE_HEIGHT = 0.95;    
 
-    // Dynamic Canvas Textures for Sign Marquee and Wall Monitor
+    // Dynamic Canvas Textures
     let doorSignCanvas, doorSignCtx, doorSignTex, marqueeScrollPos = 0;
     let wallMonitorCanvas, wallMonitorCtx, wallMonitorTex;
 
@@ -322,7 +343,7 @@
       osc.start(); osc.stop(audioCtx.currentTime + 0.05);
     }
 
-    // --- PROCEDURAL TEXTURE & HIGH-GRAPHICS GENERATORS ---
+    // --- PROCEDURAL TEXTURES ---
     function generateParquetTexture() {
       const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
       const ctx = canvas.getContext('2d');
@@ -516,11 +537,14 @@
       buildLightBoundParticles();
       buildRealisticHome();
 
+      // EVENT LISTENERS SUPPORT (PC & MOBILE TOUCH)
       window.addEventListener('resize', onResize);
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('click', onClick);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerdown', onPointerDown);
       window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in moveKeys) moveKeys[k] = true; });
       window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (k in moveKeys) moveKeys[k] = false; });
+
+      setupMobileControls();
 
       document.getElementById('btn-first-person').addEventListener('click', enterFirstPerson);
       document.getElementById('modal-close-btn').addEventListener('click', resetOverview);
@@ -529,8 +553,27 @@
       animate();
     }
 
+    function setupMobileControls() {
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      if (!isMobile) return;
+
+      const bindDpad = (id, key) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        const start = (e) => { e.preventDefault(); moveKeys[key] = true; };
+        const end = (e) => { e.preventDefault(); moveKeys[key] = false; };
+        btn.addEventListener('pointerdown', start);
+        btn.addEventListener('pointerup', end);
+        btn.addEventListener('pointerleave', end);
+      };
+
+      bindDpad('btn-up', 'w');
+      bindDpad('btn-down', 's');
+      bindDpad('btn-left', 'a');
+      bindDpad('btn-right', 'd');
+    }
+
     function setupAtmosphericLighting() {
-      // Soft Ambient & Indirect Bounce Lighting across room
       const softWindowLight = new THREE.DirectionalLight(0xffdfb3, 0.65);
       softWindowLight.position.set(6, 9, 7); 
       softWindowLight.castShadow = true;
@@ -539,11 +582,9 @@
       softWindowLight.shadow.bias = -0.0001;
       scene.add(softWindowLight);
 
-      // Diffuse ambient fill for soft room-wide coverage
       const ambient = new THREE.AmbientLight(0x1a1e28, 0.85); 
       scene.add(ambient);
 
-      // WIDE DIFFUSE VOLUMETRIC LIGHTING (TIDAK LANCIPI & SANGAT MENYEBAR)
       createWideDiffuseSpot(-3.5, 4.8, -0.5);
       createWideDiffuseSpot(4.0, 4.8, -0.5);
     }
@@ -552,7 +593,6 @@
       const fixtureGroup = new THREE.Group();
       fixtureGroup.position.set(x, y, z);
 
-      // Wide Ceiling Dome Fixture
       const rimGeo = new THREE.CylinderGeometry(0.8, 0.85, 0.12, 32);
       const rimMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.9, roughness: 0.15 });
       const rimMesh = new THREE.Mesh(rimGeo, rimMat);
@@ -567,11 +607,10 @@
 
       scene.add(fixtureGroup);
 
-      // Diffuse Spot Light with Wide Angle & High Penumbra for realistic room dispersion
       const sLight = new THREE.SpotLight(0xffb86c, 2.6);
       sLight.position.set(x, y - 0.1, z);
-      sLight.angle = Math.PI / 2.2; // Sudut sangat lebar
-      sLight.penumbra = 0.95;       // Tepian cahaya sangat lembut & menyebar
+      sLight.angle = Math.PI / 2.2; 
+      sLight.penumbra = 0.95;       
       sLight.distance = 16;
       sLight.decay = 1.2;
       sLight.castShadow = true;
@@ -579,7 +618,6 @@
       scene.add(sLight);
       roomLights.push(sLight);
 
-      // WIDE FRUSTUM VOLUMETRIC CONE (LEBAR DAN LOGICAL DIFFUSE SHED)
       const radiusTop = 0.85;
       const radiusBottom = 6.8;
       const height = 4.8;
@@ -622,14 +660,12 @@
       scene.add(cone);
       volumetricCones.push(cone);
 
-      // Store local lamp coordinates for particle containment
       lightSourcesInfo.push({
         x: x, yTop: y - 0.1, yBottom: y - 0.1 - PARTICLE_HEIGHT,
         radius: PARTICLE_RADIUS, height: PARTICLE_HEIGHT
       });
     }
 
-    // --- HIGH GRAPHICS: LOCALIZED LIGHT DUST PARTICLES (STRICTLY AROUND LAMP) ---
     function buildLightBoundParticles() {
       const totalParticles = lightSourcesInfo.length * PARTICLES_PER_LIGHT;
       const pGeo = new THREE.BufferGeometry();
@@ -704,7 +740,6 @@
     }
 
     function resetParticleAroundFixture(src) {
-      // Particles stay localized in a small radius strictly surrounding the fixture
       const r = Math.sqrt(Math.random()) * src.radius;
       const theta = Math.random() * Math.PI * 2;
       const yOffset = Math.random() * src.height;
@@ -744,15 +779,12 @@
       const woodPanelMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.45 });
       const skirtingMat = new THREE.MeshStandardMaterial({ color: 0x0c0704, roughness: 0.5 });
 
-      // Main Floor
       const floor = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 14), floorMat); 
       floor.position.set(0, -0.1, 0); floor.receiveShadow = true; room.add(floor);
 
-      // Ceiling
       const ceiling = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 14), ceilingMat); 
       ceiling.position.set(0, 5.1, 0); room.add(ceiling);
 
-      // Outer Brick Walls
       const backWall = new THREE.Mesh(new THREE.BoxGeometry(18, 5.0, 0.3), brickWallMat); 
       backWall.position.set(0, 2.5, -6.85); backWall.receiveShadow = true; room.add(backWall);
 
@@ -762,36 +794,26 @@
       const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5.0, 14), brickWallMat); 
       rightWall.position.set(8.85, 2.5, 0); rightWall.receiveShadow = true; room.add(rightWall);
 
-      // Skirting Baseboards
       const skirtBack = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 0.05), skirtingMat); 
       skirtBack.position.set(0, 0.1, -6.675); room.add(skirtBack);
 
       const skirtLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 14), skirtingMat); 
       skirtLeft.position.set(-8.675, 0.1, 0); room.add(skirtLeft);
 
-      // Room Partition Wall
       const partitionBase = new THREE.Mesh(new THREE.BoxGeometry(0.25, 5.0, 8.5), woodPanelMat);
       partitionBase.position.set(2.0, 2.5, -2.45); partitionBase.castShadow = true; partitionBase.receiveShadow = true; room.add(partitionBase);
 
-      // ROOM SECTIONS
       buildBedroom(room);
       buildLivingSpace(room);
       buildWorkstationDesk(room);
-
-      // NEW PASSAGES: UNDERGROUND LAB & OUTSIDE EXIT
       buildUndergroundLabPassage(room);
       buildOutsideExitDoor(room);
-
-      // DYNAMIC WALL HOLOGRAM / MONITOR
       buildWallHologramMonitor(room);
-
-      // "Developed by CelxTea" TEXT ON CENTER FLOOR
       buildCenterFloorText(room);
 
       scene.add(room);
     }
 
-    // --- "Developed by CelxTea" FLOOR TEXT ---
     function buildCenterFloorText(parent) {
       const canvas = document.createElement('canvas');
       canvas.width = 1024; canvas.height = 256;
@@ -819,7 +841,7 @@
       const textGeo = new THREE.PlaneGeometry(5.5, 1.375);
       const textMesh = new THREE.Mesh(textGeo, textMat);
       textMesh.rotation.x = -Math.PI / 2;
-      textMesh.position.set(2, 0.015, 5); // Di lantai tengah yang kosong
+      textMesh.position.set(2, 0.015, 5); 
       parent.add(textMesh);
     }
 
@@ -871,11 +893,9 @@
       const tableMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.35 });
       const slatMat = new THREE.MeshStandardMaterial({ map: woodGrainTexture, roughness: 0.45 });
 
-      // Rug
       const rug = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.01, 3.2), rugMat); 
       rug.position.set(0, 0.005, 0); rug.receiveShadow = true; livingGroup.add(rug);
 
-      // Sofa
       const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 1.4), sofaMat); 
       sofaBase.position.set(0, 0.2, 0); sofaBase.castShadow = true; livingGroup.add(sofaBase);
 
@@ -888,7 +908,6 @@
       const sofaArmR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, 1.4), sofaMat); 
       sofaArmR.position.set(1.625, 0.5, 0); livingGroup.add(sofaArmR);
 
-      // Sofa Back Slat Partition
       const sofaPartitionGroup = new THREE.Group();
       sofaPartitionGroup.position.set(0, 0, -0.85);
 
@@ -908,7 +927,6 @@
       }
       livingGroup.add(sofaPartitionGroup);
 
-      // Coffee Table
       const table = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 1.1), tableMat); 
       table.position.set(0, 0.175, 1.4); table.castShadow = true; livingGroup.add(table);
 
@@ -934,10 +952,8 @@
       const monitorStand = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 })); 
       monitorStand.position.set(0, 0.825, -0.3); deskGroup.add(monitorStand);
 
-      // Ergonomic Chair Facing PC Desk
       buildWorkstationChair(deskGroup);
 
-      // Wall Light Switch
       wallSwitchMesh = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, 0.14), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 1.4 }));
       wallSwitchMesh.position.set(-8.68, 1.8, 0); wallSwitchMesh.userData = { type: "light_switch" }; interactiveObjects.push(wallSwitchMesh); parent.add(wallSwitchMesh);
 
@@ -949,14 +965,12 @@
 
     function buildWorkstationChair(parent) {
       const chairGroup = new THREE.Group();
-      // Positioned directly in front of desk facing towards monitor (-Z)
       chairGroup.position.set(0, 0, 1.0);
 
       const leatherMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.45 });
       const metalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.2 });
       const accentMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0284c7, emissiveIntensity: 0.6 });
 
-      // Star Base & Castors
       const baseHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 12), metalMat);
       baseHub.position.y = 0.1; chairGroup.add(baseHub);
 
@@ -968,26 +982,21 @@
         chairGroup.add(leg);
       }
 
-      // Cylinder Shaft
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.35, 12), metalMat);
       shaft.position.y = 0.25; chairGroup.add(shaft);
 
-      // Seat Cushion
       const seat = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.65), leatherMat);
       seat.position.y = 0.45; seat.castShadow = true; chairGroup.add(seat);
 
-      // Chair Backrest
       const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.85, 0.08), leatherMat);
       backrest.position.set(0, 0.9, 0.28); backrest.rotation.x = -0.05; backrest.castShadow = true; chairGroup.add(backrest);
 
-      // Ergonomic Neon Accents
       const stripL = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.8, 0.02), accentMat);
       stripL.position.set(-0.28, 0.9, 0.32); chairGroup.add(stripL);
 
       const stripR = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.8, 0.02), accentMat);
       stripR.position.set(0.28, 0.9, 0.32); chairGroup.add(stripR);
 
-      // Armrests
       const armL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.4), metalMat);
       armL.position.set(-0.35, 0.62, 0.05); chairGroup.add(armL);
 
@@ -997,7 +1006,6 @@
       parent.add(chairGroup);
     }
 
-    // --- UNDERGROUND DESCENT PASSAGE TO CELESTIA LAB ---
     function buildUndergroundLabPassage(parent) {
       const labGroup = new THREE.Group();
       labGroup.position.set(0, 0, -6.5);
@@ -1006,27 +1014,22 @@
       const doorMat = new THREE.MeshStandardMaterial({ map: doorPanelTexture, roughness: 0.45, metalness: 0.25 });
       const stairMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
 
-      // Door Frame Arch
       const fL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.4, 0.3), frameMat); fL.position.set(-1.25, 1.7, 0); labGroup.add(fL);
       const fR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3.4, 0.3), frameMat); fR.position.set(1.25, 1.7, 0); labGroup.add(fR);
       const fT = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.25, 0.3), frameMat); fT.position.set(0, 3.4, 0); labGroup.add(fT);
 
-      // Heavy Vaulted Underground Portal Door
       const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.12), doorMat);
       doorLeaf.position.set(0, 1.6, -0.05); doorLeaf.castShadow = true; labGroup.add(doorLeaf);
 
-      // Descending Stairs
       for (let i = 0; i < 6; i++) {
         const step = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.2, 0.4), stairMat);
         step.position.set(0, -0.1 - (i * 0.2), -0.2 - (i * 0.35));
         labGroup.add(step);
       }
 
-      // Blue Glow indicator light above door
       const statusLight = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 2.2 }));
       statusLight.position.set(0, 3.75, 0.12); labGroup.add(statusLight);
 
-      // Signage Text Canvas Dynamic Marquee / Horizontal Scroll
       doorSignCanvas = document.createElement('canvas'); doorSignCanvas.width = 512; doorSignCanvas.height = 128;
       doorSignCtx = doorSignCanvas.getContext('2d');
       doorSignTex = new THREE.CanvasTexture(doorSignCanvas);
@@ -1043,7 +1046,6 @@
       parent.add(labGroup);
     }
 
-    // --- DYNAMIC WALL HOLOGRAM / ADVANCED DISPLAY MONITOR ---
     function buildWallHologramMonitor(parent) {
       const displayGroup = new THREE.Group();
       displayGroup.position.set(-3.2, 2.7, -6.65);
@@ -1081,19 +1083,16 @@
 
       ctx.fillStyle = '#030712'; ctx.fillRect(0, 0, w, h);
 
-      // Sci-fi Grid Overlay
       ctx.strokeStyle = 'rgba(14, 165, 233, 0.15)'; ctx.lineWidth = 1;
       for (let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
       for (let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
-      // Header Bar
       ctx.fillStyle = '#0284c7'; ctx.font = 'bold 24px "Orbitron", sans-serif';
       ctx.fillText('TELEMETRY', 40, 50);
 
       ctx.fillStyle = '#38bdf8'; ctx.font = '16px "Fira Code", monospace';
       ctx.fillText(`SYSTEM OK // TIME: ${time.toFixed(2)}s`, w - 340, 50);
 
-      // Dynamic Audio Waveform Simulation
       ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3; ctx.beginPath();
       for (let i = 0; i < 400; i += 10) {
         const x = 40 + i;
@@ -1102,7 +1101,6 @@
       }
       ctx.stroke();
 
-      // Live Interactive Bars Data
       ctx.fillStyle = 'rgba(56, 189, 248, 0.25)'; ctx.fillRect(500, 120, 480, 180);
       ctx.strokeStyle = '#38bdf8'; ctx.strokeRect(500, 120, 480, 180);
 
@@ -1112,7 +1110,6 @@
         ctx.fillRect(520 + b * 38, 280 - barHeight, 24, barHeight);
       }
 
-      // Bottom Status Logs
       ctx.fillStyle = '#f59e0b'; ctx.font = '18px "Fira Code", monospace';
       ctx.fillText(`> HVAC CORE: RUNNING (${currentTemp}°C)`, 40, 360);
       ctx.fillText(`> GRID POWER: ${isLightOn ? 'STABLE [100%]' : 'SAVING [20%]'}` , 40, 400);
@@ -1138,7 +1135,6 @@
       doorSignTex.needsUpdate = true;
     }
 
-    // --- OUTSIDE EXIT DOOR ---
     function buildOutsideExitDoor(parent) {
       const exitGroup = new THREE.Group();
       exitGroup.position.set(8.65, 0, 2.5);
@@ -1147,16 +1143,13 @@
       const frameMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.4 });
       const woodDoorMat = new THREE.MeshStandardMaterial({ map: doorPanelTexture, roughness: 0.55 });
 
-      // Door Frame
       const fL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), frameMat); fL.position.set(-1.1, 1.6, 0); exitGroup.add(fL);
       const fR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), frameMat); fR.position.set(1.1, 1.6, 0); exitGroup.add(fR);
       const fT = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 0.2), frameMat); fT.position.set(0, 3.2, 0); exitGroup.add(fT);
 
-      // Solid Outer Door
       const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(2.0, 3.0, 0.1), woodDoorMat);
       doorLeaf.position.set(0, 1.5, 0); exitGroup.add(doorLeaf);
 
-      // Exit Sign
       const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 96;
       const ctx = canvas.getContext('2d'); ctx.fillStyle = '#064e3b'; ctx.fillRect(0, 0, 256, 96);
       ctx.fillStyle = '#34d399'; ctx.font = 'bold 32px "Orbitron", sans-serif'; ctx.textAlign = 'center'; 
@@ -1174,11 +1167,16 @@
     function enterFirstPerson() {
       if (isModalOpen) return;
       playClickSound(); isFirstPerson = true; controls.enabled = false;
+      const mobileControls = document.getElementById('mobile-controls');
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        mobileControls.style.display = 'flex';
+      }
       gsap.to(camera.position, { x: 0, y: 1.6, z: 5, duration: 1, ease: "power2.out", onComplete: () => pointerControls.lock() });
     }
 
     function exitFirstPerson() {
       isFirstPerson = false;
+      document.getElementById('mobile-controls').style.display = 'none';
       if (pointerControls.isLocked) pointerControls.unlock();
       controls.enabled = true;
     }
@@ -1188,9 +1186,19 @@
       window.location.href = './celestialab.html';
     }
 
-    function onMouseMove(e) {
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-      const hint = document.getElementById('cursor-hint'); hint.style.left = `${e.clientX}px`; hint.style.top = `${e.clientY}px`;
+    function updatePointerCoordinates(e) {
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+      mouse.x = (clientX / window.innerWidth) * 2 - 1; 
+      mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+      return { clientX, clientY };
+    }
+
+    function onPointerMove(e) {
+      const coords = updatePointerCoordinates(e);
+      const hint = document.getElementById('cursor-hint'); 
+      hint.style.left = `${coords.clientX}px`; 
+      hint.style.top = `${coords.clientY}px`;
 
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(interactiveObjects);
@@ -1214,7 +1222,19 @@
       }
     }
 
-    function onClick() {
+    function onPointerDown(e) {
+      if (e.target.closest('#project-modal, .camera-hud-controls, #mobile-controls')) return;
+      updatePointerCoordinates(e);
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(interactiveObjects);
+
+      if (intersects.length > 0) {
+        hoveredObj = intersects[0].object;
+        handleInteraction();
+      }
+    }
+
+    function handleInteraction() {
       if (!hoveredObj || isModalOpen || isClickBlocked) return;
       const type = hoveredObj.userData.type;
 
@@ -1250,7 +1270,6 @@
 
       document.getElementById('portal-wrapper').style.display = data.isPortal ? 'block' : 'none';
 
-      // Music Player Setup
       const musicEl = document.getElementById('m-music-player');
       if (data.hasMusic) {
         musicEl.style.display = 'flex';
@@ -1259,7 +1278,6 @@
         musicEl.style.display = 'none';
       }
 
-      // Terminal Setup
       const termEl = document.getElementById('m-terminal');
       if (data.hasTerminal) {
         termEl.style.display = 'block'; setupInteractiveTerminal();
@@ -1279,7 +1297,6 @@
       gsap.to(controls.target, { x: DEFAULT_TARGET_POS.x, y: DEFAULT_TARGET_POS.y, z: DEFAULT_TARGET_POS.z, duration: 1.4, ease: "power3.inOut", onComplete: () => { controls.enabled = true; } });
     }
 
-    // --- TERMINAL & SMART HOME MINI-GAME ---
     function setupInteractiveTerminal() {
       puzzleActive = false;
       const terminalEl = document.getElementById('m-terminal');
@@ -1361,11 +1378,9 @@
 
       if (controls && controls.enabled) controls.update();
 
-      // DYNAMIC TEXTURE UPDATES
       updateDoorSignMarquee(delta);
       updateWallMonitorCanvas(elapsedTime);
 
-      // PARTICLES DYNAMICS (LOCALLY CONFINED STRICTLY AROUND LAMP)
       if (particleSystem && isLightOn) {
         particleSystem.material.uniforms.uTime.value = elapsedTime;
         const positions = particleSystem.geometry.attributes.position.array;
@@ -1378,18 +1393,16 @@
           let py = positions[i * 3 + 1];
           let pz = positions[i * 3 + 2];
 
-          // Slow ambient floating
           py -= pD.vy;
           px += pD.vx + Math.sin(elapsedTime * pD.wobbleSpeed + pD.wobbleOffset) * 0.0008;
           pz += pD.vz + Math.cos(elapsedTime * pD.wobbleSpeed + pD.wobbleOffset) * 0.0008;
 
           const distFromCenter = Math.sqrt((px - src.x) * (px - src.x) + (pz - src.z) * (pz - src.z));
 
-          // Bound check: Reset if particle leaves the tight lamp boundary radius or vertical range
           if (py < src.yBottom || py > src.yTop || distFromCenter > src.radius) {
             const newP = resetParticleAroundFixture(src);
             px = newP.x;
-            py = src.yTop - (Math.random() * 0.1); // Spawns directly at lamp fixture
+            py = src.yTop - (Math.random() * 0.1); 
             pz = newP.z;
           }
 
@@ -1401,7 +1414,6 @@
         particleSystem.geometry.attributes.position.needsUpdate = true;
       }
 
-      // WASD First-person Movement
       if (!isModalOpen) {
         const speed = 4.5 * delta;
         const forward = new THREE.Vector3(), side = new THREE.Vector3();
