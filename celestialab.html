@@ -210,7 +210,7 @@
     .hud-btn:hover { background: rgba(0, 242, 254, 0.2); transform: translateY(-2px); border-color: var(--accent-cyan); box-shadow: 0 6px 25px rgba(0,242,254,0.3); }
     .hud-btn:active { transform: translateY(0); }
 
-    /* Mobile Virtual Joystick Touch Controls */
+    /* Mobile Controls Container */
     #mobile-controls {
       position: fixed; bottom: 30px; left: 30px; z-index: 60; display: none; width: 120px; height: 120px;
       background: rgba(255, 255, 255, 0.05); border: 2px solid var(--glass-border); border-radius: 50%;
@@ -221,13 +221,17 @@
       background: var(--accent-cyan); border-radius: 50%; transform: translate(-50%, -50%);
       opacity: 0.85; box-shadow: 0 0 15px var(--accent-cyan); pointer-events: none;
     }
+    /* Mobile Touch Look Area Hint */
+    #touch-look-zone {
+      position: fixed; top: 0; right: 0; width: 50vw; height: 100vh; z-index: 40; display: none; touch-action: none;
+    }
 
     /* Modal Info Window / Windows-like OS UI */
     .project-modal {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -45%) scale(0.95);
       width: 90%; max-width: 560px; background: var(--glass); backdrop-filter: blur(35px);
       border: 1px solid var(--glass-border); border-radius: 12px; padding: 0;
-      z-index: 20; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 200; opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: 0 20px 60px rgba(0,0,0,0.95), 0 0 30px rgba(0,242,254,0.1); overflow: hidden;
     }
     .project-modal.active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
@@ -341,6 +345,9 @@
     <button class="hud-btn" id="btn-first-person"><i class="fa-solid fa-person"></i> First Person</button>
     <button class="hud-btn" id="btn-reset-cam" onclick="resetOverview()"><i class="fa-solid fa-rotate-right"></i> Reset Camera</button>
   </div>
+
+  <!-- Touch Zone for Drag-Look on Mobile FP Mode -->
+  <div id="touch-look-zone"></div>
 
   <!-- Mobile Touch Joystick -->
   <div id="mobile-controls">
@@ -642,7 +649,7 @@
       // Pointer Lock Controls untuk First Person
       pointerControls = new THREE.PointerLockControls(camera, document.body);
       pointerControls.addEventListener('unlock', () => {
-        if (isFirstPerson) exitFirstPerson();
+        if (isFirstPerson && !isTouchDevice) exitFirstPerson();
       });
 
       raycaster = new THREE.Raycaster();
@@ -665,6 +672,7 @@
       window.addEventListener('resize', onResize);
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('click', onClick);
+      window.addEventListener('touchstart', onTouchStart, { passive: false });
 
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
@@ -699,6 +707,7 @@
             pointerControls.lock();
           } else {
             document.getElementById('mobile-controls').style.display = 'block';
+            document.getElementById('touch-look-zone').style.display = 'block';
           }
         }
       });
@@ -707,6 +716,7 @@
     function exitFirstPerson() {
       isFirstPerson = false;
       document.getElementById('mobile-controls').style.display = 'none';
+      document.getElementById('touch-look-zone').style.display = 'none';
       if (pointerControls.isLocked) pointerControls.unlock();
       controls.enabled = true;
     }
@@ -715,8 +725,11 @@
       isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
       const joystick = document.getElementById('mobile-controls');
       const stick = document.getElementById('joystick-stick');
+      const touchZone = document.getElementById('touch-look-zone');
       let touchId = null, startX = 0, startY = 0;
+      let lookTouchId = null, lastLookX = 0, lastLookY = 0;
 
+      // Mobile Touch Joystick Logic
       window.addEventListener('touchstart', (e) => {
         if (!isFirstPerson) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
@@ -759,6 +772,50 @@
 
       window.addEventListener('touchend', resetStick);
       window.addEventListener('touchcancel', resetStick);
+
+      // Mobile Drag to Look Around Logic
+      touchZone.addEventListener('touchstart', (e) => {
+        if (!isFirstPerson) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (lookTouchId === null) {
+            lookTouchId = t.identifier;
+            lastLookX = t.clientX;
+            lastLookY = t.clientY;
+          }
+        }
+      });
+
+      touchZone.addEventListener('touchmove', (e) => {
+        if (!isFirstPerson || lookTouchId === null) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === lookTouchId) {
+            const dx = t.clientX - lastLookX;
+            const dy = t.clientY - lastLookY;
+            lastLookX = t.clientX;
+            lastLookY = t.clientY;
+
+            // Rotate camera via Euler
+            const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= dx * 0.005;
+            euler.x -= dy * 0.005;
+            euler.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, euler.x));
+            camera.quaternion.setFromEuler(euler);
+          }
+        }
+      });
+
+      const resetLook = (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === lookTouchId) {
+            lookTouchId = null;
+          }
+        }
+      };
+      touchZone.addEventListener('touchend', resetLook);
+      touchZone.addEventListener('touchcancel', resetLook);
     }
 
     function onKeyDown(e) {
@@ -1723,6 +1780,11 @@
       }, 600);
     }
 
+    function checkRaycastIntersects(coords) {
+      raycaster.setFromCamera(coords, camera);
+      return raycaster.intersectObjects(interactiveObjects);
+    }
+
     function onMouseMove(event) {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -1730,8 +1792,7 @@
       const hint = document.getElementById('cursor-hint');
       hint.style.left = `${event.clientX}px`; hint.style.top = `${event.clientY}px`;
 
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(interactiveObjects);
+      const intersects = checkRaycastIntersects(mouse);
 
       if (intersects.length > 0) {
         const obj = intersects[0].object;
@@ -1767,6 +1828,25 @@
         }
       } else {
         hoveredObj = null; hint.style.opacity = '0'; document.body.style.cursor = 'default';
+      }
+    }
+
+    function onTouchStart(event) {
+      if (event.touches.length > 1) return;
+      const touch = event.touches[0];
+      // Jika sentuhan terjadi pada elemen UI modal, biarkan interaksi standard UI
+      if (event.target.closest('#project-modal') || event.target.closest('.camera-hud-controls') || event.target.closest('#mobile-controls')) {
+        return;
+      }
+      
+      const touchMouse = new THREE.Vector2(
+        (touch.clientX / window.innerWidth) * 2 - 1,
+        -(touch.clientY / window.innerHeight) * 2 + 1
+      );
+      const intersects = checkRaycastIntersects(touchMouse);
+      if (intersects.length > 0) {
+        hoveredObj = intersects[0].object;
+        onClick();
       }
     }
 
@@ -1926,224 +2006,205 @@
             - <b>set_temp &lt;val&gt;</b> : Adjust chamber HVAC temperature (°C)<br>
             - <b>repair_specimen</b> : Launch multi-phase diagnostic bypass puzzle for Specimen #04<br>
             - <b>lights</b> : Toggle laboratory lighting<br>
-            - <b>override</b> : Trigger containment override protocol<br>
-            - <b>clear</b> : Clear terminal output console<br>
-            - <b>exit</b> : Close workstation terminal`;
+            - <b>clear</b> : Clear console history`;
           } else if (cmd === 'status') {
-            const spec4Status = podData[3].isFailed ? "CRITICAL BREACH WARNING" : "STABLE / REPAIRED";
-            responseText = `SYSTEM TELEMETRY:<br>
-            * Chamber Temp: ${currentChamberTemp.toFixed(1)}°C | HEPA Filtration: 99.97%<br>
-            * Main Lighting: ${isLightOn ? 'ACTIVE' : 'OFF'}<br>
-            * Containment Field: STABLE (Pods 01-03, 05-08)<br>
-            * Specimen #04 Status: ${spec4Status}`;
-            responseColor = 'var(--accent-gold)';
+            responseText = `[TELEMETRY REPORT]<br>
+            > HVAC Temp: ${currentChamberTemp.toFixed(1)}°C<br>
+            > Lighting System: ${isLightOn ? 'ACTIVE (100%)' : 'OFFLINE (0%)'}<br>
+            > Specimen Pods: 8 Loaded (1 Critical Failure)<br>
+            > Quantum Field Coherence: 99.82%`;
           } else if (cmd === 'scan_dna') {
-            responseText = `[DNA SCANNER] Sequenced 3.2B base pairs.<br>
-            Double-helix stability: 99.4%. Hydrophobic core intact.`;
-            responseColor = 'var(--accent-cyan)';
+            responseText = `> Scanning DNA Holographic Matrix...<br>
+            > Base Pairs: 18 Pairs Verified.<br>
+            > Genetic Sequence: [AT-CG-CG-TA-AT-GC]<br>
+            > Result: Zero mutations detected in control sample.`;
+            responseColor = 'var(--accent-green)';
           } else if (cmd === 'decontaminate') {
-            responseText = `[CLEANROOM] Decontamination protocol initiated.<br>
-            Air purging complete. Nitrogen levels restored to safe thresholds.`;
+            responseText = `> Initiating Bio-Hazard Purge Cycle...<br>
+            > Injecting HEPA air recirculation...<br>
+            > Decontamination complete. Air purity: 100%.`;
             responseColor = 'var(--accent-green)';
           } else if (cmd.startsWith('set_temp')) {
             const parts = cmd.split(' ');
             if (parts.length > 1 && !isNaN(parts[1])) {
-              const val = parseFloat(parts[1]);
-              if (val >= -270 && val <= 100) {
-                currentChamberTemp = val;
-                responseText = `[HVAC] Chamber temperature recalibrated to ${currentChamberTemp.toFixed(1)}°C.`;
-                responseColor = 'var(--accent-green)';
-              } else {
-                responseText = `[HVAC ERROR] Temperature value out of operating bounds (-270°C to 100°C).`;
-                responseColor = 'var(--accent-red)';
-              }
+              currentChamberTemp = parseFloat(parts[1]);
+              responseText = `> Chamber HVAC target temperature updated to ${currentChamberTemp.toFixed(1)}°C.`;
             } else {
-              responseText = `Usage: set_temp <value> (e.g., set_temp 18.5)`;
-              responseColor = 'var(--accent-gold)';
-            }
-          } else if (cmd === 'repair_specimen' || cmd === 'repair' || cmd === 'repair_pod') {
-            if (!podData[3].isFailed) {
-              responseText = `[SYSTEM] Specimen #04 is already fully operational and stabilized.`;
-              responseColor = 'var(--accent-green)';
-            } else {
-              startPuzzleGame(historyEl);
-              terminalEl.scrollTop = terminalEl.scrollHeight;
-              return;
+              responseText = `> Usage: set_temp <number>`;
+              responseColor = 'var(--accent-red)';
             }
           } else if (cmd === 'lights') {
             toggleRoomLighting();
-            responseText = `Lighting system toggled to: ${isLightOn ? 'ON' : 'OFF'}`;
-            responseColor = 'var(--accent-green)';
-          } else if (cmd === 'override') {
-            triggerExplosion();
-            responseText = `[CRITICAL WARNING] CONTAINMENT OVERRIDE ACTIVATED! EMERGENCY FLUSH INITIATED!`;
-            responseColor = 'var(--accent-red)';
+            responseText = `> Room lights toggled to ${isLightOn ? 'ACTIVE' : 'OFF'}.`;
           } else if (cmd === 'clear') {
             historyEl.innerHTML = '';
-            terminalEl.scrollTop = terminalEl.scrollHeight;
             return;
-          } else if (cmd === 'exit') {
-            resetOverview();
+          } else if (cmd === 'repair_specimen') {
+            startPuzzleSequence(historyEl);
             return;
           } else {
             responseText = `Command not recognized: '${cmd}'. Type 'help' for available commands.`;
             responseColor = 'var(--accent-red)';
           }
 
-          const responseLine = document.createElement('div');
-          responseLine.className = 'terminal-line';
-          responseLine.style.color = responseColor;
-          responseLine.style.marginTop = '4px';
-          responseLine.style.marginBottom = '8px';
-          responseLine.innerHTML = responseText;
-          historyEl.appendChild(responseLine);
+          const resLine = document.createElement('div');
+          resLine.className = 'terminal-line';
+          resLine.style.color = responseColor;
+          resLine.innerHTML = responseText;
+          historyEl.appendChild(resLine);
 
           terminalEl.scrollTop = terminalEl.scrollHeight;
         }
       });
     }
 
-    function startPuzzleGame(historyEl) {
+    function startPuzzleSequence(historyEl) {
       puzzleActive = true;
       puzzleStage = 1;
-      puzzleTargetFreq = Math.floor(Math.random() * 50) + 400; 
+      puzzleTargetFreq = Math.floor(Math.random() * 400) + 100; // 100 - 500 Hz
 
-      const line = document.createElement('div');
-      line.className = 'terminal-line';
-      line.style.color = 'var(--accent-gold)';
-      line.style.marginTop = '6px';
-      line.innerHTML = `====================================================<br>
-      [CRITICAL PROTOCOL] MULTI-PHASE SPECIMEN #04 OVERRIDE<br>
-      ====================================================<br>
-      <b>[PHASE 1/3: FREQUENCY CALIBRATION]</b><br>
-      Harmonic resonance out of sync! Clue: <i>Target frequency is between 400 Hz and 450 Hz.</i><br>
-      Enter frequency (e.g., <b>420</b>):`;
-      historyEl.appendChild(line);
+      const initLine = document.createElement('div');
+      initLine.className = 'terminal-line';
+      initLine.style.color = 'var(--accent-gold)';
+      initLine.innerHTML = `
+        <br><b>[SPECIMEN #04 OVERRIDE DIAGNOSTIC INITIALIZED]</b><br>
+        --------------------------------------------------<br>
+        <b>STAGE 1: FREQUENCY CALIBRATION</b><br>
+        Target Resonance Frequency detected between 100 Hz - 500 Hz.<br>
+        Type <b>freq &lt;value&gt;</b> (e.g. 'freq 250') to find resonance.<br>
+        --------------------------------------------------
+      `;
+      historyEl.appendChild(initLine);
     }
 
     function handlePuzzleInput(cmd, historyEl, terminalEl) {
-      const line = document.createElement('div');
-      line.className = 'terminal-line';
+      const resLine = document.createElement('div');
+      resLine.className = 'terminal-line';
 
       if (puzzleStage === 1) {
-        const freq = parseInt(cmd);
-        if (isNaN(freq)) {
-          line.style.color = 'var(--accent-red)';
-          line.innerHTML = `[ERROR] Invalid frequency format. Enter a numerical value (400 - 450):`;
-          historyEl.appendChild(line);
-        } else if (freq < puzzleTargetFreq) {
-          line.style.color = 'var(--accent-gold)';
-          line.innerHTML = `[RESONANCE TOO LOW] Resonance at ${freq} Hz. Adjust HIGHER!`;
-          historyEl.appendChild(line);
-        } else if (freq > puzzleTargetFreq) {
-          line.style.color = 'var(--accent-gold)';
-          line.innerHTML = `[RESONANCE TOO HIGH] Resonance at ${freq} Hz. Adjust LOWER!`;
-          historyEl.appendChild(line);
-        } else {
-          puzzleStage = 2;
-          puzzleSeqIndex = 0;
-          const options = ['alpha', 'beta', 'gamma', 'delta'];
-          puzzleSequence = [
-            options[Math.floor(Math.random() * options.length)],
-            options[Math.floor(Math.random() * options.length)],
-            options[Math.floor(Math.random() * options.length)],
-            options[Math.floor(Math.random() * options.length)]
-          ];
-          line.style.color = 'var(--accent-green)';
-          line.innerHTML = `[PHASE 1 CLEARED] Frequency locked at ${puzzleTargetFreq} Hz!<br><br>
-          <b>[PHASE 2/3: QUANTUM SEQUENCE ALIGNMENT]</b><br>
-          Stabilize 4 pressure valves in order.<br>
-          Required Sequence: <b>${puzzleSequence.join(' -> ')}</b><br>
-          Enter valve 1 of 4 (alpha, beta, gamma, delta):`;
-          historyEl.appendChild(line);
-        }
-      } else if (puzzleStage === 2) {
-        const validNodes = ['alpha', 'beta', 'gamma', 'delta'];
-        if (!validNodes.includes(cmd)) {
-          line.style.color = 'var(--accent-red)';
-          line.innerHTML = `[ERROR] Invalid valve node! Use: alpha, beta, gamma, delta. Target: ${puzzleSequence[puzzleSeqIndex]}`;
-          historyEl.appendChild(line);
-        } else if (cmd === puzzleSequence[puzzleSeqIndex]) {
-          puzzleSeqIndex++;
-          if (puzzleSeqIndex >= puzzleSequence.length) {
-            puzzleStage = 3;
-            const a = Math.floor(Math.random() * 8) + 2;
-            const b = Math.floor(Math.random() * 8) + 2;
-            puzzlePasscode = a * b;
-            line.style.color = 'var(--accent-green)';
-            line.innerHTML = `[PHASE 2 CLEARED] All pressure valves stabilized!<br><br>
-            <b>[PHASE 3/3: SECURITY MATRIX OVERRIDE]</b><br>
-            Solve quantum parity check to unlock core containment:<br>
-            <i>EVALUATE: ${a} × ${b} = ?</i><br>
-            Enter security passcode:`;
-            historyEl.appendChild(line);
+        if (cmd.startsWith('freq')) {
+          const val = parseInt(cmd.split(' ')[1]);
+          if (isNaN(val)) {
+            resLine.style.color = 'var(--accent-red)';
+            resLine.innerHTML = `> Invalid input. Use: freq <100-500>`;
+          } else if (val < puzzleTargetFreq) {
+            resLine.style.color = 'var(--accent-gold)';
+            resLine.innerHTML = `> ${val} Hz is TOO LOW. Increase resonance frequency.`;
+          } else if (val > puzzleTargetFreq) {
+            resLine.style.color = 'var(--accent-gold)';
+            resLine.innerHTML = `> ${val} Hz is TOO HIGH. Decrease resonance frequency.`;
           } else {
-            line.style.color = 'var(--accent-cyan)';
-            line.innerHTML = `[VALVE ${puzzleSeqIndex}/4 OK] Enter next valve node:`;
-            historyEl.appendChild(line);
+            resLine.style.color = 'var(--accent-green)';
+            resLine.innerHTML = `> RESONANCE MATCHED AT ${val} Hz! Stage 1 Passed.<br><br>`;
+            
+            // Proceed to Stage 2
+            puzzleStage = 2;
+            const seqLength = 4;
+            const colors = ['alpha', 'beta', 'gamma', 'delta'];
+            puzzleSequence = [];
+            for (let i = 0; i < seqLength; i++) {
+              puzzleSequence.push(colors[Math.floor(Math.random() * colors.length)]);
+            }
+            puzzleSeqIndex = 0;
+
+            resLine.innerHTML += `
+              <b>STAGE 2: QUANTUM SEQUENCE STABILIZATION</b><br>
+              Re-enter the required quantum sequence key in exact order:<br>
+              <b style="color:var(--accent-cyan)">[ ${puzzleSequence.join(' -> ').toUpperCase()} ]</b><br>
+              Enter first token (${puzzleSequence[0]}):
+            `;
           }
         } else {
-          line.style.color = 'var(--accent-red)';
-          line.innerHTML = `[SEQUENCE BREACH] Wrong valve engaged! Sequence reset. Enter valve 1 (${puzzleSequence[0]}):`;
-          puzzleSeqIndex = 0;
-          historyEl.appendChild(line);
+          resLine.style.color = 'var(--accent-red)';
+          resLine.innerHTML = `> Stage 1 Active. Format: freq <value>`;
+        }
+      } else if (puzzleStage === 2) {
+        const expected = puzzleSequence[puzzleSeqIndex];
+        if (cmd === expected) {
+          puzzleSeqIndex++;
+          if (puzzleSeqIndex >= puzzleSequence.length) {
+            resLine.style.color = 'var(--accent-green)';
+            resLine.innerHTML = `> QUANTUM SEQUENCE FULLY STABILIZED! Stage 2 Passed.<br><br>`;
+
+            // Proceed to Stage 3
+            puzzleStage = 3;
+            puzzlePasscode = Math.floor(Math.random() * 8999) + 1000;
+            resLine.innerHTML += `
+              <b>STAGE 3: SECURITY PASSCODE OVERRIDE</b><br>
+              System Security Override Token: <b style="color:var(--accent-gold)">${puzzlePasscode}</b><br>
+              Enter passcode to confirm override:
+            `;
+          } else {
+            resLine.style.color = 'var(--accent-cyan)';
+            resLine.innerHTML = `> Token accepted (${puzzleSeqIndex}/${puzzleSequence.length}). Enter next token (${puzzleSequence[puzzleSeqIndex]}):`;
+          }
+        } else {
+          resLine.style.color = 'var(--accent-red)';
+          resLine.innerHTML = `> INVALID TOKEN! Sequence failed. Enter token '${expected}':`;
         }
       } else if (puzzleStage === 3) {
-        const code = parseInt(cmd);
-        if (code === puzzlePasscode) {
+        if (parseInt(cmd) === puzzlePasscode) {
           puzzleActive = false;
-          podData[3].isFailed = false;
-          podData[3].name = "Specimen D: Stabilized Plasma";
-          podData[3].color = 0x10b981;
+          resLine.style.color = 'var(--accent-green)';
+          resLine.innerHTML = `
+            ==================================================<br>
+            <b>[SUCCESS] CRITICAL CONTAINMENT POD #04 STABILIZED!</b><br>
+            Thermal runaway contained. Specimen core reset to safe state.<br>
+            ==================================================
+          `;
           
-          line.style.color = 'var(--accent-green)';
-          line.innerHTML = `[SUCCESS] SPECIMEN #04 CONTAINMENT FIELD FULLY REPAIRED & RE-STABILIZED!`;
-          historyEl.appendChild(line);
+          // Reset status failed pod
+          const failedPod = podData.find(p => p.id === "pod_4");
+          if (failedPod) {
+            failedPod.isFailed = false;
+            failedPod.name = "Specimen D: Stabilized";
+            failedPod.desc = "Containment re-established successfully via mainframe override.";
+          }
         } else {
-          line.style.color = 'var(--accent-red)';
-          line.innerHTML = `[INCORRECT PASSCODE] Recalculate parity check and re-enter code:`;
-          historyEl.appendChild(line);
+          resLine.style.color = 'var(--accent-red)';
+          resLine.innerHTML = `> INCORRECT PASSCODE! Re-enter token: ${puzzlePasscode}`;
         }
       }
+
+      historyEl.appendChild(resLine);
       terminalEl.scrollTop = terminalEl.scrollHeight;
     }
 
     function showModal(data) {
       isModalOpen = true;
       const modal = document.getElementById('project-modal');
-      const tag = document.getElementById('m-tag');
-      const title = document.getElementById('m-title');
-      const desc = document.getElementById('m-desc');
-      const linkContainer = document.getElementById('m-link-container');
-      const osWrapper = document.getElementById('os-control-wrapper');
-      const terminal = document.getElementById('m-terminal');
+      const mTag = document.getElementById('m-tag');
+      const mTitle = document.getElementById('m-title');
+      const mDesc = document.getElementById('m-desc');
+      const mLink = document.getElementById('m-link-container');
+      const mTerminal = document.getElementById('m-terminal');
+      const osControlWrapper = document.getElementById('os-control-wrapper');
 
-      tag.textContent = data.tag || (data.filled ? "CONTAINMENT POD" : "EMPTY POD");
-      tag.className = "project-tag" + (data.isFailed ? " danger" : (data.isInfo ? " info" : ""));
-      title.textContent = data.name;
-      desc.textContent = data.desc;
+      mTag.textContent = data.tag || (data.filled ? "CONTAINMENT POD" : "EMPTY POD");
+      mTag.className = "project-tag";
+      if (data.isFailed) mTag.classList.add("danger");
+      if (data.isInfo) mTag.classList.add("info");
 
-      linkContainer.innerHTML = '';
+      mTitle.textContent = data.name;
+      mDesc.textContent = data.desc;
+
       if (data.url) {
-        const link = document.createElement('a');
-        link.href = data.url;
-        link.target = '_blank';
-        link.className = 'modal-link-btn';
-        link.innerHTML = 'OPEN EXPERIMENT PORTAL <i class="fa-solid fa-arrow-up-right-from-square"></i>';
-        linkContainer.appendChild(link);
+        mLink.innerHTML = `<a href="${data.url}" target="_blank" class="modal-link-btn"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Live Deployment</a>`;
+      } else {
+        mLink.innerHTML = '';
       }
 
       if (data.hasControlPanel) {
-        osWrapper.style.display = "block";
+        osControlWrapper.style.display = "block";
       } else {
-        osWrapper.style.display = "none";
+        osControlWrapper.style.display = "none";
       }
 
       if (data.hasTerminal) {
-        terminal.style.display = "block";
+        mTerminal.style.display = "block";
         setupInteractiveTerminal();
       } else {
-        terminal.style.display = "none";
+        mTerminal.style.display = "none";
       }
 
       modal.classList.add('active');
@@ -2153,7 +2214,7 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
     }
 
     function animate() {
@@ -2162,67 +2223,79 @@
       const delta = clock.getDelta();
       const time = clock.getElapsedTime();
 
-      // Perbarui posisi WASD
+      // Signal render pertama selesai untuk mematikan loader screen
+      if (!LoadingManager.isFirstFrameRendered) {
+        LoadingManager.isFirstFrameRendered = true;
+        LoadingManager.complete();
+      }
+
       updateMovement(delta);
 
       if (!isFirstPerson && controls && controls.enabled) {
         controls.update();
       }
 
-      // Animasi Pipa Aliran Liquid
-      flowPipes.forEach((pipe, idx) => {
-        if (pipe.material) {
-          pipe.material.emissiveIntensity = 1.5 + Math.sin(time * 3 + idx) * 0.8;
-        }
-      });
+      updateAmbientVolume();
 
-      // Animasi Putaran DNA Hologram
+      // DNA Hologram Rotation
       if (dnaHologramGroup) {
         dnaHologramGroup.rotation.y = time * 0.8;
       }
 
-      // Animasi Partikel Debu Cahaya
-      if (lightDustGroup) {
-        const dustPoints = lightDustGroup.children.find(c => c.isPoints);
-        if (dustPoints && dustPoints.userData.dustData) {
-          const pos = dustPoints.geometry.attributes.position;
-          const data = dustPoints.userData.dustData;
-          for (let i = 0; i < data.length; i++) {
-            const d = data[i];
-            d.baseY += d.speedY;
-            if (d.baseY > 5.2) d.baseY = 1.0;
-            const currentY = d.baseY;
-            const currentAngle = d.angle + Math.sin(time * d.swaySpeed) * d.swayAmp;
-            
-            const px = d.centerX + Math.cos(currentAngle) * d.radius;
-            const pz = d.centerZ + Math.sin(currentAngle) * d.radius;
-            pos.setXYZ(i, px, currentY, pz);
-          }
-          pos.needsUpdate = true;
-        }
-      }
+      // Animasi Flow Pipes
+      flowPipes.forEach((pipe, index) => {
+        pipe.material.emissiveIntensity = 1.5 + Math.sin(time * 3 + index) * 0.8;
+      });
 
-      // Animasi Kerlip Lampu LED Server Racks
-      serverLEDs.forEach((item, idx) => {
-        if (!item.isErr && item.mesh.material) {
-          item.mesh.material.emissiveIntensity = 1.2 + Math.sin(time * 5 + idx) * 0.8;
+      // Animasi LED Server Racks
+      serverLEDs.forEach((led, idx) => {
+        if (led.isErr) {
+          led.mesh.material.emissiveIntensity = 1.5 + Math.sin(time * 12) * 1.5;
+        } else {
+          if (Math.random() < 0.05) {
+            led.mesh.material.emissiveIntensity = Math.random() * 2.5;
+          }
         }
       });
 
-      // Sinkronisasi Volume Suara Ambient
-      updateAmbientVolume();
+      // Animasi Volumetric Dust Particles
+      if (lightDustGroup && lightDustGroup.children[3]) {
+        const dustPoints = lightDustGroup.children[3];
+        const positions = dustPoints.geometry.attributes.position.array;
+        const dustData = dustPoints.userData.dustData;
 
-      // Render Scene
-      if (composer) {
-        composer.render();
-      } else {
-        renderer.render(scene, camera);
+        for (let i = 0; i < dustData.length; i++) {
+          const d = dustData[i];
+          d.baseY += d.speedY;
+          if (d.baseY > 5.2) d.baseY = 1.0; 
+
+          const currentHeight = 5.2 - d.baseY;
+          const topR = 0.35, bottomR = 2.6;
+          const maxR = topR + (currentHeight / 4.2) * (bottomR - topR);
+
+          d.angle += 0.005;
+          const currentR = Math.min(d.radius, maxR);
+          
+          positions[i * 3] = d.centerX + Math.cos(d.angle) * currentR + Math.sin(time * d.swaySpeed) * d.swayAmp;
+          positions[i * 3 + 1] = d.baseY;
+          positions[i * 3 + 2] = d.centerZ + Math.sin(d.angle) * currentR + Math.cos(time * d.swaySpeed) * d.swayAmp;
+        }
+        dustPoints.geometry.attributes.position.needsUpdate = true;
       }
 
-      if (!LoadingManager.isFirstFrameRendered) {
-        LoadingManager.isFirstFrameRendered = true;
-        LoadingManager.complete();
+      // Animasi Partikel Ledakan jika triggered
+      if (isExploding && explosionParticles) {
+        const posAttr = explosionParticles.geometry.attributes.position;
+        const vels = explosionParticles.userData.velocities;
+        for (let i = 0; i < explosionParticles.userData.count; i++) {
+          posAttr.setX(i, posAttr.getX(i) + vels[i * 3]);
+          posAttr.setY(i, posAttr.getY(i) + vels[i * 3 + 1]);
+          posAttr.setZ(i, posAttr.getZ(i) + vels[i * 3 + 2]);
+        }
+        posAttr.needsUpdate = true;
       }
+
+      composer.render();
     }
 
     window.onload = init;
